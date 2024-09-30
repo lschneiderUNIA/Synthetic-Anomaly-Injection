@@ -1,0 +1,10 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# Environment directory
+.venv/
+
+# Data directory
+data/f1_data.parquet
+data/large_train_data.parquet
+
