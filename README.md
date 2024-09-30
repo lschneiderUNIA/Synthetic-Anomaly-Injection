@@ -17,3 +17,7 @@ Install the required packages with
 ```bash
 pip install -r requirements.txt
 ```
+
+
+## Data
+The data is stored in a data folder using parquet and can be edited in the options.py file.
