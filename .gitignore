@@ -3,8 +3,7 @@ __pycache__/
 
 # Environment directory
 .venv/
+venv/
 
 # Data directory
-data/f1_data.parquet
-data/large_train_data.parquet
-
+data/

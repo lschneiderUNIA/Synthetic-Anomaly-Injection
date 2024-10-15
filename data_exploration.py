@@ -40,24 +40,108 @@ Index(['Seriennummer', 'LOGCHARGEDATETIME', 'batch_id', 'PosixTime', 'GTist',
        'phase', 'subphase', 'seconds', 'c_pump_max_60_sec',
        'c_pump_moving_avg'],
 most important: 
-   GT_ist, B4, B2_ist
+   GTist, B4, B2_ist
 
 """
 
+class DataExplorer():
+
+    def __init__(self) -> None:
+        data_loader = DataLoader()
+
+        large_train_data = data_loader.load_large_train_data()
+        self.large_train_data_grouped = data_loader.groupby_date_serial_number(large_train_data)
+
+        self.f1_data = data_loader.load_f1_data()
+        self.f1_data_grouped = data_loader.groupby_date_serial_number(self.f1_data)
+        
+        self.f1_labels_file = data_loader.load_f1_labels(self.f1_data)
+
+        self.f1_labels_dict = {(entry['Seriennummer'] , entry['LOGCHARGEDATETIME']): entry for entry in self.f1_labels_file}
+
+    
+    def main(self):
+        #self.plotting_f1()
+        self.average_phases()
+
+
+    def plotting_f1(self, f1_data : pd.DataFrame) -> None:
+        """
+            explore the f1 data
+        """
+   
+        plot_grid = (2,8)
+
+        data_visualizer = DataVisualizer(plot_grid)
+
+        anomaly_color = 'red'
+        normal_color = 'blue'
+
+        anomaly_counter = 0
+        normal_counter = 0
+        
+        for i,group in enumerate(self.f1_data_grouped.groups):
+            # if i <15:
+            #     continue
+
+
+            data= self.f1_data_grouped.get_group(group)
+            
+            serial_number = data.iloc[0]['Seriennummer']
+            date = data.iloc[0]['LOGCHARGEDATETIME'].strftime('%Y-%m-%d %H:%M:%S')
+
+            if self.f1_labels_dict[serial_number, date]['anomaly']  == True:
+                pos = anomaly_counter
+                grid = (1, pos)
+                anomaly_counter += 1
+                plot_color = anomaly_color
+                
+            else:
+                pos = normal_counter
+                grid = (0, pos)
+                normal_counter += 1
+                plot_color = normal_color
+
+            if pos >= plot_grid[1]:
+                continue
+            
+            data_visualizer.plot_at_grid_position(grid_position=grid,
+                                                    data= data,
+                                                    x_column = 'seconds',
+                                                    y_column = 'B2_ist',
+                                                    x_label = f"{serial_number}-{date}",
+                                                    plot_color = plot_color,
+                                                    add_phase_lines=True)
+            
+        print(f"Anomalies: {anomaly_counter}")
+        print(f"Normal: {normal_counter}")
+        data_visualizer.show_data()
+
+
+    def average_phases(self):
+        """
+            explore average of the phases
+        """
+        list_of_groups = list(self.large_train_data_grouped.groups)
+        sample_group = self.large_train_data_grouped.get_group(list_of_groups[0])
+
+        number_of_phases = sample_group['phase'].nunique()
+        print(f"Number of phases: {number_of_phases}")
+
+        phase_lengths = 
+        
 
 
 
 def main():
-    data_loader = DataLoader()
+   
+        
+    explorer = DataExplorer()
+    explorer.main()
+
+    return
 
 
-    # f1_data = data_loader.load_f1_data()
-    # f1_data_grouped = data_loader.preprocess_data(f1_data)
-    # [
-    #     print(f"Group: {group}") 
-    #     for group in f1_data_grouped.groups
-    # ]
-    # return
 
 
 

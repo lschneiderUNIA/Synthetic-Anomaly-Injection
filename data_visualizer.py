@@ -32,16 +32,23 @@ class DataVisualizer():
             define format, layout of plots,
 
         """
+
         self.layout = layout
-        self.fig, self.axes = plt.subplots(layout[0], layout[1])
-        self.fig.tight_layout()
+        try:
+            self.fig, self.axes = plt.subplots(layout[0], layout[1])
+        except:
+            raise ValueError("Layout must be a tuple of two integers")
+        #self.fig.tight_layout()
+
+
+
 
     def _get_correct_axes(self, grid_position : tuple[int, int]) -> matplotlib.axes:
         """
             get axes object at grid position
             I always want to access the axes object with a tuple, even if its a 1x1 grid or a list of axes objects
         """
-
+        #print(grid_position)
         if grid_position[0] >= self.layout[0] or grid_position[1] >= self.layout[1]:
             raise ValueError("Grid position out of bounds")
         if self.layout[0] == 1 and self.layout[1] == 1:
@@ -59,6 +66,8 @@ class DataVisualizer():
                               data : pd.DataFrame,  
                               x_column : str, 
                               y_column, # can be str of list[str] for multiple columns
+                              x_label : str = None,
+                              plot_color :str = None,
                               add_phase_colors : bool = False, 
                               add_phase_lines : bool = False) -> None:
         """
@@ -67,12 +76,23 @@ class DataVisualizer():
 
         """
         axes = self._get_correct_axes(grid_position)
+        axes.set_ylim([0, 200])
+        axes.set_xlim([0, 13000])
         x = data[x_column]
         y = data[y_column]
-        self._plot_data_at_axes_object(axes, x, y, add_phase_colors)
+
+        if plot_color != None:
+            axes.plot(x, y, color=plot_color, label=y_column)
+        else:
+            axes.plot(x, y)
+
+        if x_label != None:
+            axes.set_xlabel(x_label)
+
+        #self._plot_data_at_axes_object(axes, x, y, add_phase_colors)
         # add legend
-        print(y_column)
-        axes.legend(y_column)
+
+        #axes.legend(y_column)
 
         if add_phase_lines:
             self._add_phase_lines(axes, data)
@@ -88,15 +108,18 @@ class DataVisualizer():
         axes.plot(x, y)
 
 
-    def _add_phase_lines(self, axes : matplotlib.axes, data : pd.DataFrame) -> None:
+    def _add_phase_lines(self, axes : matplotlib.axes, data : pd.DataFrame, color : str = None) -> None:
         """
             add vertical lines to axes object at phase changes
         """
+        if color == None:
+            color = 'k'
+
         phases = data['phase']
         for phase in phases.unique():
             index = np.where(phases == phase)[0][0]
             seconds_index = data['seconds'].iloc[index]
-            axes.axvline(x = seconds_index, color='k', linestyle='--')
+            axes.axvline(x = seconds_index, color=color, linestyle='--')
 
     def show_data(self) -> None:
         """
