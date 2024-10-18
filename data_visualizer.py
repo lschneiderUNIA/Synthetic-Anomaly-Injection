@@ -88,6 +88,8 @@ class DataVisualizer():
 
         if x_label != None:
             axes.set_xlabel(x_label)
+        
+        axes.set_ylabel(y_column)
 
         #self._plot_data_at_axes_object(axes, x, y, add_phase_colors)
         # add legend
