@@ -1,6 +1,7 @@
 import sys
 sys.path.append('..')
 import options as op
+
 from data_loader import DataLoader
 from data_visualizer import DataVisualizer
 
@@ -67,6 +68,24 @@ class DataExplorer():
         #self.plotting_f1()
         #self.average_phases_with_interpolation(selected_sensor= 'B2_ist')
 
+        # 2x4 grid, with rows being sensors, and columns being different anomaly factors and phase_shift_lengths
+        data_visualizer = DataVisualizer((2,4))
+
+        sensor_list = ['GTist', 'B4']
+
+
+        anomaly_factor_list = [0.4, 0.7, 1.2, 1.5]
+        phase_shift_length_factor_list = [0.9] * 4
+        for row, sensor in enumerate(sensor_list):
+            for i, (anomaly_factor, phase_shift_length_factor) in enumerate(zip(anomaly_factor_list, phase_shift_length_factor_list)):
+                self.phase_test_anomaly(sensor=sensor,
+                                        grid_position=(row,i),
+                                        data_visualizer=data_visualizer,
+                                        anomaly_factor=anomaly_factor,
+                                        phase_shift_length_factor=phase_shift_length_factor)
+
+
+        data_visualizer.show_data()
 
     def plotting_f1(self, f1_data : pd.DataFrame) -> None:
         """
@@ -193,9 +212,92 @@ class DataExplorer():
         
         data_visualizer.show_data()
 
-        phase_lengths = 
+    def phase_test_anomaly(self, sensor,
+                             grid_position = (0,0),
+                             data_visualizer = DataVisualizer((1,1)),
+                             phase = 2,
+                             anomaly_factor = 0.3,
+                             phase_shift_length_factor = 0.5):
+        """
+            explore phase anomalies
+        """
+
+        def simple_multiply(data, phase, sensor, anomaly_factor):
+            data.loc[data.phase == phase, sensor] *= anomaly_factor
+            return data
+        
+        def e_function_multiply(data, phase, sensor, anomaly_factor):
+            """
+                anomaly_factor is the end multiplier, we want a exponential increase up to this factor
+            """
+            phase_length = data.loc[data.phase == phase].shape[0]
+            function_multiplier = np.log(anomaly_factor) / phase_length
+            e_function = lambda x : np.exp(function_multiplier * x)
+
+            data.loc[data.phase == phase, sensor] *= e_function(np.arange(phase_length))
+
+            phase_end_data_point = data.loc[data.phase == phase].iloc[-1]
+            print(phase_end_data_point)
+
+
+            return data
+
+        next_phase = phase + 1
+
+
+        list_of_groups = list(self.large_train_data_grouped.groups)
+        group_index = 0
+        # group_index = random.randint(0, len(list_of_groups))  
+        sample_group = self.large_train_data_grouped.get_group(list_of_groups[group_index])
+
+        data_visualizer.plot_at_grid_position(grid_position=grid_position,
+                                              data= sample_group,
+                                              x_column = 'seconds',
+                                              y_column = sensor,
+                                              add_phase_lines=True,
+                                              plot_color='blue')
         
 
+
+        sample_group = e_function_multiply(sample_group, phase, sensor, anomaly_factor)
+
+        phase_end_data_point = sample_group.loc[sample_group.phase == phase].iloc[-1]
+        #print(phase_end_data_point)
+
+        next_phase_start_data_point = sample_group.loc[sample_group.phase == next_phase].iloc[0]
+        #print(next_phase_start_data_point)
+
+
+
+        next_phase_length = sample_group.loc[sample_group.phase == next_phase].shape[0]
+
+
+        phase_shift_length = int(next_phase_length * phase_shift_length_factor)
+
+        initial_phase_shift = phase_end_data_point[sensor] / next_phase_start_data_point[sensor]
+
+        data_shift = np.logspace(np.log10(initial_phase_shift), np.log10(1.0), phase_shift_length)
+
+        next_phase_sensor_data = sample_group.loc[sample_group.phase == next_phase, sensor][:phase_shift_length]
+        print(next_phase_sensor_data)
+        next_phase_sensor_data = next_phase_sensor_data * data_shift
+        print(next_phase_sensor_data)
+
+        next_phase_rows = sample_group.loc[sample_group.phase == next_phase]
+
+        # Update the sensor column for the first phase_shift_length rows
+        sample_group.loc[next_phase_rows.index[:phase_shift_length], sensor] = next_phase_sensor_data        
+        print(sample_group.loc[sample_group.phase == next_phase, sensor][:phase_shift_length])
+
+
+
+        data_visualizer.plot_at_grid_position(grid_position=grid_position,
+                                              data= sample_group,
+                                              x_column = 'seconds',
+                                              y_column = sensor,
+                                              add_phase_lines=True,
+                                              plot_color='red')
+        #data_visualizer.show_data()
 
 
 def main():
