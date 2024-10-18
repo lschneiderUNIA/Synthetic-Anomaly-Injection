@@ -9,6 +9,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from pprint import pprint
+from scipy.interpolate import interp1d
+
+
 """
     logging setup
     this is global (I think), so we only have to do it in the main file
@@ -62,7 +65,7 @@ class DataExplorer():
     
     def main(self):
         #self.plotting_f1()
-        self.average_phases()
+        #self.average_phases_with_interpolation(selected_sensor= 'B2_ist')
 
 
     def plotting_f1(self, f1_data : pd.DataFrame) -> None:
@@ -118,15 +121,77 @@ class DataExplorer():
         data_visualizer.show_data()
 
 
-    def average_phases(self):
+    def average_phases_with_interpolation(self, selected_sensor):
         """
             explore average of the phases
         """
         list_of_groups = list(self.large_train_data_grouped.groups)
         sample_group = self.large_train_data_grouped.get_group(list_of_groups[0])
 
-        number_of_phases = sample_group['phase'].nunique()
-        print(f"Number of phases: {number_of_phases}")
+        # phase dict to store all phase lengths
+        phase_indices = sample_group['phase'].unique()
+        phase_dict_lengths = {phase: [] for phase in phase_indices}
+        phase_dict_dataframes = {phase: [] for phase in phase_indices}
+        
+        # iterate over all groups
+        # add phase lengths to phase_dict
+        # add dataframes to phase_dict
+        for i, group in enumerate(list_of_groups):
+            data = self.large_train_data_grouped.get_group(group)
+            # get phase in data for each phase_index
+            # store phase length in appropriate dict entry
+            for phase_index in phase_indices:
+                phase = data.loc[data.phase == phase_index]
+                phase_length = phase['seconds'].max() - phase['seconds'].min()
+
+                phase_dict_lengths[phase_index].append(phase_length)
+                phase_dict_dataframes[phase_index].append(phase)
+
+        entries_per_phase = [len(phase_dict_lengths[phase]) for phase in phase_dict_lengths]
+        #check that all dict entries have same length
+        # just checks that all time series have the same phases
+        assert all([entry == entries_per_phase[0] for entry in entries_per_phase]) == True
+        print(entries_per_phase)
+
+        average_phase_lengths = {phase: int(np.mean(phase_dict_lengths[phase])) for phase in phase_dict_lengths}
+        print(average_phase_lengths)
+        phase_interpolation_spaces = {
+            phase: np.linspace(0, length, length) for phase,length in average_phase_lengths.items()
+        }   
+
+        phase_dict_interpolated = {phase: [] for phase in phase_indices}
+
+        for phase, dataframes in phase_dict_dataframes.items():
+            for data in dataframes:
+                x = data['seconds'].max() - data['seconds']
+                y = data[selected_sensor]
+                interpolator = interp1d(x, y, kind='linear', fill_value="extrapolate")
+                interpolated_values = interpolator(phase_interpolation_spaces[phase])
+                phase_dict_interpolated[phase].append(interpolated_values)
+                #interpolated_values = np.interp(common_time_points, normalized_time, phase['value'])
+
+        average_phases = {phase: np.flip(np.mean(phase_dict_interpolated[phase], axis=0)) for phase in phase_indices}
+        #pandas dataframe from average series
+        # with phase column
+        # and seconds column
+
+        average_series_df = pd.DataFrame()
+        for i, phase in enumerate(phase_indices):
+            current_length = len(average_series_df.index)
+            assert isinstance(current_length, int)
+            average_series_df = pd.concat([average_series_df, pd.DataFrame({
+                'phase': [phase]*len(average_phases[phase]),
+                'seconds': range(current_length, current_length+average_phase_lengths[phase]),
+                selected_sensor: average_phases[phase]
+            })])
+        data_visualizer = DataVisualizer((1,1))
+        data_visualizer.plot_at_grid_position(grid_position=(0,0),
+                                              data= average_series_df,
+                                              x_column = 'seconds',
+                                              y_column = selected_sensor,
+                                              add_phase_lines=True)
+        
+        data_visualizer.show_data()
 
         phase_lengths = 
         
