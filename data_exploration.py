@@ -2,7 +2,7 @@ import sys
 sys.path.append('..')
 import options as op
 
-from data_loader import DataLoader
+from data_management.data_loader import DataLoader
 from data_visualizer import DataVisualizer
 
 import numpy as np
