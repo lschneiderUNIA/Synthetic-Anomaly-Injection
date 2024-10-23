@@ -77,12 +77,15 @@ class DataHandler():
         if group_index < 0 or group_index >= len(self.list_of_pd_groups):
             raise IndexError("Group index out of range")
         return self.large_train_data_grouped.get_group(self.list_of_pd_groups[group_index])    
-    
-    def update_group_by_index(self, group_index : int, group : pd.DataFrame):
+
+    def get_mask_for_phases(self, group : pd.DataFrame, phase_indices : List[int]) -> pd.DataFrame:
         """
-            update a group by index
+            return phase data of a group
+            phase_indices is a list of integers or an integer
         """
-        self.large_train_data_grouped.groups[self.list_of_pd_groups[group_index]] = group
+        if isinstance(phase_indices, int):
+            phase_indices = [phase_indices]
+        return group['phase'].isin(phase_indices)
         
 
     def _load_large_train_data(self) -> pd.DataFrame:
@@ -112,6 +115,14 @@ class DataHandler():
 
 
     """
+
+        
+    def update_group_by_index(self, group_index : int, group : pd.DataFrame):
+        """
+            update a group by index
+        """
+        self.large_train_data_grouped.groups[self.list_of_pd_groups[group_index]] = group
+
     def get_group_by_index_and_phase(self, group_index : int, phase : int) -> pd.DataFrame:
         """
             return a group by index and phase

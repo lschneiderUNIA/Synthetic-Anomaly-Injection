@@ -17,9 +17,28 @@ class PhaseAnomalyInjector():
         self.data_handler : DataHandler = data_handler
 
 
-    def simple_multiply(data, sensor, phase_index, anomaly_factor) -> pd.DataFrame:
+    def linear_function(self, data, sensor, phase_index_list : list, anomaly_factor) -> pd.DataFrame:
         """
             multiply phase data with anomaly factor
         """
-        data.loc[data.phase == phase_index, sensor] *= anomaly_factor
+        mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
+        data.loc[mask, sensor] *= anomaly_factor
+        return data
+
+
+    def constant_function(self,data, sensor, phase_index_list : list, anomaly_factor) -> pd.DataFrame:
+        """
+            reduce phase data by anomaly factor
+        """
+        mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
+        data.loc[mask, sensor] += anomaly_factor
+        return data
+    
+    
+    def polynomial_function(self, data, sensor, phase_index_list, anomaly_factor) -> pd.DataFrame:
+        """
+            apply a quadratic function to phase data
+        """
+        mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
+        data.loc[mask, sensor] = data.loc[mask, sensor]**anomaly_factor
         return data
