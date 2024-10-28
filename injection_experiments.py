@@ -16,6 +16,7 @@ from data_visualizer import DataVisualizer
 
 from data_manipulation.phase_anomaly_injector import PhaseAnomalyInjector
 from data_manipulation.phase_alignment import PhaseAligner
+from data_manipulation.phase_function_anomaly import PhaseFunctionAnomaly
 
 
 #------------------------------------------------
@@ -27,26 +28,31 @@ sensor_list = opt.MOST_IMPORTANT_SENSOR_COLUMNS
 
 phase_anomaly_injector = PhaseAnomalyInjector(data_handler)
 phase_aligner = PhaseAligner(data_handler)
+phase_function_injector = PhaseFunctionAnomaly(data_handler)
 
 data_visualizer = DataVisualizer((1,1))
 
 
 #------------------------------------------------
+# Setting up
+#------------------------------------------------
 
-
-
-
+# get random group
 group_index = random.randint(0, data_handler.get_number_of_groups())
+group = data_handler.get_group_by_index(group_index)
+
 logging.info("Selected group index: {}".format(group_index))
 
-phase_index = data_handler.get_phase_indices_list()[:2]
-anomaly_factor = 0.6
+
+# get phase indices
+phase_index_list = data_handler.get_phase_indices_list()
+phase_index_list = phase_index_list[1:2]
+logging.info("Selected phase indices: {}".format(phase_index_list))
+# select sensor
 selected_sensor = sensor_list[0]
 logging.info("Selected sensor: {}".format(selected_sensor))
 
-group = data_handler.get_group_by_index(group_index)
-
-# plot original data
+# plot initial data
 data_visualizer.plot_at_grid_position(grid_position=(0,0),
                                         data=group,
                                         x_column='seconds',
@@ -54,21 +60,68 @@ data_visualizer.plot_at_grid_position(grid_position=(0,0),
                                         add_phase_lines=True,
                                         plot_color='blue')
 
+#------------------------------------------------
+# ACTUAL EXPERIMENT
+#------------------------------------------------
+
+function_parameters = {'type' : 'constant', 'factor' : 0.7}
+
+group = phase_function_injector.inject_function_on_data(
+                                function_parameters,
+                                group,
+                                selected_sensor,
+                                phase_index_list)
+
+function_parameters = {'type' : 'linear', 'start_factor' : 1, 'end_factor' : 1.6}
+
+group = phase_function_injector.inject_function_on_data(
+                                function_parameters,
+                                group,
+                                selected_sensor,
+                                phase_index_list)
+
+# aligning
+function_parameters = {'type' : 'linear'}
+group = phase_function_injector.inject_function_on_data(   
+                                        function_parameters,
+                                        group,
+                                        selected_sensor,
+                                        [phase_index_list[0]-1],
+                                        alignment_factor=0.5,
+                                        align_to_next=True)
+
+
+group = phase_function_injector.inject_function_on_data(
+                                        function_parameters,
+                                        group,
+                                        selected_sensor,
+                                        [phase_index_list[-1]+1],
+                                        alignment_factor=0.7,
+                                        align_to_next=False)
+
+
+
 # inject anomaly
 # group = phase_anomaly_injector.linear_function(group,
 #                                      selected_sensor,
 #                                      phase_index,
 #                                      anomaly_factor)s
-group = phase_anomaly_injector.linear_function(group,
-                                        selected_sensor,
-                                        phase_index,
-                                        anomaly_factor,)
+# group = phase_anomaly_injector.linear_function(group,
+#                                         selected_sensor,
+#                                         phase_index,
+#                                         anomaly_factor,)
 
 # group = phase_aligner.phase_alignment('log',   
 #                                         group,
 #                                         selected_sensor,
 #                                         phase_index,
-#                                         0.3)
+#                                         0.8)
+
+
+#------------------------------------------------
+# FINAL PLOTTING
+#------------------------------------------------
+
 
 # plot data with anomaly
 data_visualizer.plot_at_grid_position(grid_position=(0,0),
@@ -78,17 +131,6 @@ data_visualizer.plot_at_grid_position(grid_position=(0,0),
                                         add_phase_lines=True,
                                         plot_color='red')
 
-
-
-
-
-# group = data_handler.get_group_by_index(group_index)
-# data_visualizer.plot_at_grid_position(grid_position=(0,1),
-#                                         data=group,
-#                                         x_column='seconds',
-#                                         y_column=selected_sensor,
-#                                         add_phase_lines=True,
-#                                         plot_color='green')
 
 data_visualizer.show_data()
 
