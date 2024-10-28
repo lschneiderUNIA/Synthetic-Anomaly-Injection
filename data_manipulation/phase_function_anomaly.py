@@ -46,6 +46,15 @@ class PhaseFunctionAnomaly():
         """
             main interface for this class to apply a function to a set of phases
             also allows for aligning phases
+
+            @param
+                function_parameters : dict  -- contains the function type and the parameters for the function
+                data : pd.DataFrame -- the data to be changed
+                sensor : str -- the sensor to be changed
+                phase_index_list : list -- the phases to be changed
+                alignment_factor : float -- factor to align the phases, acts as a boolean. If not set we do not align and just change the phases
+                align_to_next : bool -- if we align, we have to know if we align to the next or previous phase
+
         """
         mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
         phase_data = data.loc[mask]
@@ -57,6 +66,11 @@ class PhaseFunctionAnomaly():
         assert end_index - start_index +1 == phase_length, "Indexing error for length of phases"
 
         if alignment_factor is not None:
+            """
+                if alignment factor is set, we have to align the phase_index_list to the previous or next phase
+                this means we have to calculate the initial alignment and the phase intersection and then apply the function
+                between the start and end index -- which also have to be changed according to the alignment factor
+            """
             if align_to_next is None:
                 raise ValueError("if alignment factor is set, align_to_next must be set as well")
             if function_parameters['type'] == 'constant':
@@ -64,26 +78,28 @@ class PhaseFunctionAnomaly():
             
             phase_length = int(phase_length * alignment_factor)
 
+            # the initial alignent is the ratio between the 2 data points where the phases change
             initial_alignment = self._get_initial_alignment(data, sensor, phase_index_list, align_to_next) 
+
             if align_to_next:
+                """
+                    if we align to the next phase, we have to change the start index according to the alignment factor ie "new phase length"
+                    the end index stays the same
+                """
+
                 function_parameters['start_factor'] = 1
                 function_parameters['end_factor'] = initial_alignment
                 start_index = end_index - phase_length +1
                 if end_index - start_index +1 != phase_length:
-                    print("start index: ", start_index)
-                    print("end index: ", end_index)
-                    print("e -s: ", end_index - start_index)
-                    print("phase length: ", phase_length)
                     raise ValueError("indexing calculation error")
             else:
+                """
+                    analog to the above, just with the start index staying the same and the end index changing
+                """
                 function_parameters['start_factor'] = initial_alignment
                 function_parameters['end_factor'] = 1
                 end_index = start_index + phase_length - 1 
                 if end_index - start_index + 1  != phase_length:
-                    print("start index: ", start_index)
-                    print("end index: ", end_index)
-                    print("e -s: ", end_index - start_index)
-                    print("phase length: ", phase_length)
                     raise ValueError("indexing calculation error")
 
         multiplier_list = self._get_multiplier_list(function_parameters, phase_length)     
@@ -96,8 +112,13 @@ class PhaseFunctionAnomaly():
     def _get_multiplier_list(self, function_parameters, phase_length):
         """
             get a list of multipliers for the chosen function
+            this works off of the function parameters
+            for not constant function, we calculate the multipliers in between start and end factor
+            with the increase/decrease according to the function type
+            @param
+                function_parameters : dict -- the function parameters
+                phase_length : int -- the length of the phase
 
-            this works off of start and end factors, between which the function will be applied
         """
         function_name = function_parameters['type']
         if function_name == "constant":
@@ -115,17 +136,30 @@ class PhaseFunctionAnomaly():
 
     def _get_initial_alignment(self, data : pd.DataFrame, sensor : str, phase_index_list : list, align_to_next : bool):
         """
-        
+            calculate the ratio between the datapoints where the phases change
+            this is called the initial alignment
+
+            we have 2 cases depending on the align_to_next parameter, both cases work very similar, just with different indices
+
+            @param
+                data : pd.DataFrame -- the data
+                sensor : str -- the sensor
+                phase_index_list : list -- the phases
+                align_to_next : bool -- if we align to the next or previous phase
         """
         if align_to_next:
+            # get the last phase
             phase = phase_index_list[-1]
             if phase not in self.data_handler.get_phase_indices_list():
                 raise ValueError("phase index not in data")
 
+            # get the last data point of the aligned phases
+            # and the next data point which lies in the next phase
             phase_data = data.loc[data['phase'] == phase]
             alignment_index = phase_data.index[-1]
             alignment_index_next_phase = alignment_index + 1
             
+            # get the values of the data points
             # the loc returns a series with 1 value, with iloc we get the value itself
             aligment_value = data.loc[data.index == alignment_index][sensor].iloc[0]
             print('alignment value ', aligment_value)
@@ -135,7 +169,6 @@ class PhaseFunctionAnomaly():
 
         else:
             # meaning align to the previous phase
-            # works very similar to the above, just with different indices
             phase = phase_index_list[0]
             if phase not in self.data_handler.get_phase_indices_list():
                 raise ValueError("phase index not in data")
@@ -149,6 +182,4 @@ class PhaseFunctionAnomaly():
 
             ratio = aligment_value / aligment_value_previous
 
-        print('ratio ', ratio)
-        print('ratio type ', type(ratio))   
         return ratio
