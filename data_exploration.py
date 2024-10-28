@@ -3,6 +3,7 @@ sys.path.append('..')
 import options as op
 
 from data_management.data_loader import DataLoader
+from data_management.data_handler import DataHandler
 from data_visualizer import DataVisualizer
 
 import numpy as np
@@ -52,12 +53,13 @@ class DataExplorer():
 
     def __init__(self) -> None:
         data_loader = DataLoader()
+        data_handler = DataHandler()
 
         large_train_data = data_loader.load_large_train_data()
-        self.large_train_data_grouped = data_loader.groupby_date_serial_number(large_train_data)
+        self.large_train_data_grouped = DataHandler.groupby_date_serial_number(large_train_data)
 
         self.f1_data = data_loader.load_f1_data()
-        self.f1_data_grouped = data_loader.groupby_date_serial_number(self.f1_data)
+        self.f1_data_grouped = DataHandler.groupby_date_serial_number(self.f1_data)
         
         self.f1_labels_file = data_loader.load_f1_labels(self.f1_data)
 
@@ -65,7 +67,8 @@ class DataExplorer():
 
     
     def main(self):
-        #self.plotting_f1()
+        self.plotting_f1()
+        return
         #self.average_phases_with_interpolation(selected_sensor= 'B2_ist')
 
         # 2x4 grid, with rows being sensors, and columns being different anomaly factors and phase_shift_lengths
@@ -87,12 +90,13 @@ class DataExplorer():
 
         data_visualizer.show_data()
 
-    def plotting_f1(self, f1_data : pd.DataFrame) -> None:
+    def plotting_f1(self) -> None:
         """
             explore the f1 data
         """
-   
-        plot_grid = (2,8)
+        sensor = op.MOST_IMPORTANT_SENSOR_COLUMNS[1]
+        logging.info(f"F1 data for sensor: {sensor}")
+        plot_grid = (2,6)
 
         data_visualizer = DataVisualizer(plot_grid)
 
@@ -126,11 +130,14 @@ class DataExplorer():
 
             if pos >= plot_grid[1]:
                 continue
+
+            phase_inde_list = [2,3,4,5,6,7]
+            data = data.loc[data.phase.isin(phase_inde_list[1:])]
             
             data_visualizer.plot_at_grid_position(grid_position=grid,
                                                     data= data,
                                                     x_column = 'seconds',
-                                                    y_column = 'B2_ist',
+                                                    y_column = sensor,
                                                     x_label = f"{serial_number}-{date}",
                                                     plot_color = plot_color,
                                                     add_phase_lines=True)
