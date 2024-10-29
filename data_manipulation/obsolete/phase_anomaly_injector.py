@@ -17,7 +17,7 @@ class PhaseAnomalyInjector():
         self.data_handler : DataHandler = data_handler
 
 
-    def linear_function(self, data, sensor, phase_index_list : list, anomaly_factor) -> pd.DataFrame:
+    def linear_function(self, data, sensor, phase_index_list, anomaly_factor) -> pd.DataFrame:
         """
             multiply phase data with anomaly factor
         """
@@ -26,7 +26,7 @@ class PhaseAnomalyInjector():
         return data
 
 
-    def constant_function(self,data, sensor, phase_index_list : list, anomaly_factor) -> pd.DataFrame:
+    def constant_function(self,data, sensor, phase_index_list, anomaly_factor) -> pd.DataFrame:
         """
             reduce phase data by anomaly factor
         """
