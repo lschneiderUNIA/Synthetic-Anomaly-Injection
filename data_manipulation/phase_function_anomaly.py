@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from data_management.data_handler import DataHandler
 
 
@@ -101,7 +102,8 @@ class PhaseFunctionAnomaly():
                 end_index = start_index + phase_length - 1 
                 if end_index - start_index + 1  != phase_length:
                     raise ValueError("indexing calculation error")
-
+                
+        
         multiplier_list = self._get_multiplier_list(function_parameters, phase_length)     
 
         return self._apply_function(data, sensor, start_index, end_index, multiplier_list)
@@ -121,17 +123,55 @@ class PhaseFunctionAnomaly():
 
         """
         function_name = function_parameters['type']
+
         if function_name == "constant":
             factor  = function_parameters['factor']
             multiplier_list = [factor for i in range(phase_length)]
             return multiplier_list
+        
         elif function_name == "linear":
-            start_factor  = function_parameters['start_factor']
-            end_factor = function_parameters['end_factor']
-            multiplier_list = [start_factor + (end_factor-start_factor)*i/phase_length for i in range(phase_length)]
-            return multiplier_list
+            x_points = np.linspace(0, 1, phase_length)
+            fun = lambda x : x
+            # start_factor  = function_parameters['start_factor']
+            # end_factor = function_parameters['end_factor']
+            #multiplier_list = [start_factor + (end_factor-start_factor)*i/phase_length for i in range(phase_length)]
+                    
+        elif function_name == "exponential":
+            # this is the input range for the exponential function
+            # I purley picked them on feel, I suspect they irrelavant, as it is just a scaling factor and the relative growth is the same
+            x_points = np.linspace(-3, 3, phase_length)
+            fun = lambda x : np.exp(x) 
+        
+        elif function_name == "arctan":
+            x_points = np.linspace(-4, 4, phase_length)
+            fun = lambda x : np.arctan(x)
         else:
             raise ValueError("function name not recognized")
+        
+
+        start_factor  = function_parameters['start_factor']
+        end_factor = function_parameters['end_factor']
+
+        # compute initial multiplier list
+        multiplier_list = [fun(x) for x in x_points]
+
+        # next we need to scale/normalize the exponential function into the range between start and end factor
+        # thus we have an exponential growth between start and end factor
+        max_value = max(multiplier_list)
+        min_value = min(multiplier_list)
+
+        old_min = min_value
+        old_max = max_value
+
+        new_min = start_factor
+        new_max = end_factor
+
+        # formula I found online
+        multiplier_list = [new_min + ((x - old_min) / (old_max - old_min)) * (new_max - new_min)
+                            for x in multiplier_list]
+        # formula: new_min + ((array - old_min) / (old_max - old_min)) * (new_max - new_min)
+
+        return multiplier_list
         
 
     def _get_initial_alignment(self, data : pd.DataFrame, sensor : str, phase_index_list : list, align_to_next : bool):
@@ -180,6 +220,6 @@ class PhaseFunctionAnomaly():
             aligment_value = data.loc[data.index == alignment_index][sensor].iloc[0]
             aligment_value_previous = data.loc[data.index == alignment_index_previous_phase][sensor].iloc[0]
 
-            ratio = aligment_value / aligment_value_previous
+            ratio = aligment_value_previous / aligment_value 
 
         return ratio
