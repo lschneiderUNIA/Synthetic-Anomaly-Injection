@@ -60,24 +60,62 @@ class DataVisualizer():
         else:
             return self.axes[grid_position[0], grid_position[1]]
 
+    def plot_at_grid_position_with_distinct_points(self, 
+                              grid_position : tuple[int, int], 
+                              data : pd.DataFrame,  
+                              x_column : str, 
+                              y_column, # can be str or list[str] for multiple columns
+                              distinct_points : list,
+                              plot_color :str,
+                              x_label : str = None) -> None:
+        """
+            plot data at grid position, but visualize with distinct points marked in the plot
+        """
+        axes = self._get_correct_axes(grid_position)
+        
+        x = data[x_column]
+        y = data[y_column]
+        axes.set_ylim([0, 200])
+        axes.set_xlim([0, 13000])
+
+        if plot_color != None:
+            axes.plot(x, y, color=plot_color, label=y_column)
+        else:
+            axes.plot(x, y)
+
+        if x_label != None:
+            axes.set_xlabel(x_label)
+        
+        axes.set_ylabel(y_column)
+
+        # highlight by a thick dot with plot_color
+        for point in distinct_points:
+            #axes.scatter(x=point, y=data[y_column].iloc[point], color=plot_color, s=100)
+            # make line thinner
+            axes.axvline(x = point, color='black', linestyle='--', linewidth=0.5)
+
+                              
 
 
     def plot_at_grid_position(self, grid_position : tuple[int, int], 
                               data : pd.DataFrame,  
                               x_column : str, 
-                              y_column, # can be str of list[str] for multiple columns
+                              y_column, # can be str or list[str] for multiple columns
                               x_label : str = None,
                               plot_color :str = None,
                               add_phase_colors : bool = False, 
-                              add_phase_lines : bool = False) -> None:
+                              add_phase_lines : bool = False,
+                              y_limits : tuple = (0,200),
+                              x_limits : tuple = (0,13000))-> None:
         """
             plot data at grid position
             the y columns list is supported by panda and matplotlib and does not need to handled seperately 
 
         """
         axes = self._get_correct_axes(grid_position)
-        axes.set_ylim([0, 200])
-        axes.set_xlim([0, 13000])
+        axes.set_ylim(y_limits)
+        axes.set_xlim(x_limits)
+        
         x = data[x_column]
         y = data[y_column]
 
