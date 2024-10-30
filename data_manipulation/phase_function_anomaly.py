@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from data_management.data_handler import DataHandler
+from data_manipulation.utility_class import DataUtilityClass
 
 
 class PhaseFunctionAnomaly():
@@ -155,23 +156,9 @@ class PhaseFunctionAnomaly():
         # compute initial multiplier list
         multiplier_list = [fun(x) for x in x_points]
 
-        # next we need to scale/normalize the exponential function into the range between start and end factor
-        # thus we have an exponential growth between start and end factor
-        max_value = max(multiplier_list)
-        min_value = min(multiplier_list)
+        # use the utility class to scale the list of values
+        return DataUtilityClass.scale_list_of_values(multiplier_list, start_factor, end_factor)
 
-        old_min = min_value
-        old_max = max_value
-
-        new_min = start_factor
-        new_max = end_factor
-
-        # formula I found online
-        multiplier_list = [new_min + ((x - old_min) / (old_max - old_min)) * (new_max - new_min)
-                            for x in multiplier_list]
-        # formula: new_min + ((array - old_min) / (old_max - old_min)) * (new_max - new_min)
-
-        return multiplier_list
         
 
     def _get_initial_alignment(self, data : pd.DataFrame, sensor : str, phase_index_list : list, align_to_next : bool):
