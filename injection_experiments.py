@@ -14,9 +14,9 @@ from data_management.data_loader import DataLoader
 from data_management.data_handler import DataHandler
 from data_visualizer import DataVisualizer
 
-from data_manipulation.phase_anomaly_injector import PhaseAnomalyInjector
-from data_manipulation.phase_alignment import PhaseAligner
 from data_manipulation.phase_function_anomaly import PhaseFunctionAnomaly
+from data_manipulation.by_gradient_aligner import ByGradientAligner
+from data_manipulation.phase_range_changer import PhaseRangeChanger
 
 
 #------------------------------------------------
@@ -26,9 +26,10 @@ from data_manipulation.phase_function_anomaly import PhaseFunctionAnomaly
 data_handler = DataHandler()
 sensor_list = opt.MOST_IMPORTANT_SENSOR_COLUMNS
 
-phase_anomaly_injector = PhaseAnomalyInjector(data_handler)
-phase_aligner = PhaseAligner(data_handler)
+
 phase_function_injector = PhaseFunctionAnomaly(data_handler)
+by_gradient_aligner = ByGradientAligner(data_handler)
+phase_range_changer = PhaseRangeChanger(data_handler)
 
 data_visualizer = DataVisualizer((1,1))
 
@@ -39,6 +40,7 @@ data_visualizer = DataVisualizer((1,1))
 
 # get random group
 group_index = random.randint(0, data_handler.get_number_of_groups())
+#group_index = 177 #
 group = data_handler.get_group_by_index(group_index)
 
 logging.info("Selected group index: {}".format(group_index))
@@ -46,7 +48,7 @@ logging.info("Selected group index: {}".format(group_index))
 
 # get phase indices
 phase_index_list = data_handler.get_phase_indices_list()
-phase_index_list = phase_index_list[1:2]
+phase_index_list = phase_index_list[0:1]
 logging.info("Selected phase indices: {}".format(phase_index_list))
 # select sensor
 selected_sensor = sensor_list[0]
@@ -64,58 +66,60 @@ data_visualizer.plot_at_grid_position(grid_position=(0,0),
 # ACTUAL EXPERIMENT
 #------------------------------------------------
 
-function_parameters = {'type' : 'constant', 'factor' : 0.7}
+function_parameters = {'type' : 'arctan', 'start_factor' : 1, 'end_factor' : 0.8, 'factor': 1.5}
 
-group = phase_function_injector.inject_function_on_data(
-                                function_parameters,
-                                group,
-                                selected_sensor,
-                                phase_index_list)
-
-function_parameters = {'type' : 'linear', 'start_factor' : 1, 'end_factor' : 1.6}
-
-group = phase_function_injector.inject_function_on_data(
-                                function_parameters,
-                                group,
-                                selected_sensor,
-                                phase_index_list)
-
-# aligning
-function_parameters = {'type' : 'linear'}
-group = phase_function_injector.inject_function_on_data(   
-                                        function_parameters,
-                                        group,
-                                        selected_sensor,
-                                        [phase_index_list[0]-1],
-                                        alignment_factor=0.5,
-                                        align_to_next=True)
+group = phase_range_changer.apply_range_change_without_borders(group, selected_sensor, phase_index_list, function_parameters)
 
 
-group = phase_function_injector.inject_function_on_data(
-                                        function_parameters,
-                                        group,
-                                        selected_sensor,
-                                        [phase_index_list[-1]+1],
-                                        alignment_factor=0.7,
-                                        align_to_next=False)
+# group = phase_function_injector.inject_function_on_data(
+
+                                # function_parameters,
+                                
+                                # group,
+                                
+                                # selected_sensor,
+                                # phase_index_list)
+
+# group, found_gradient = by_gradient_aligner.align_by_gradient(
+#                                 group,
+#                                 selected_sensor,
+#                                 [phase_index_list[-1]+1],
+#                                 align_to_next=False)
+
+# if found_gradient:
+#     logging.info("Gradient found")
+# else:
+#     logging.info("Gradient not found")
 
 
 
-# inject anomaly
-# group = phase_anomaly_injector.linear_function(group,
-#                                      selected_sensor,
-#                                      phase_index,
-#                                      anomaly_factor)s
-# group = phase_anomaly_injector.linear_function(group,
-#                                         selected_sensor,
-#                                         phase_index,
-#                                         anomaly_factor,)
+# # function_parameters = {'type' : 'linear', 'start_factor' : 1, 'end_factor' : 1.6}
 
-# group = phase_aligner.phase_alignment('log',   
-#                                         group,
-#                                         selected_sensor,
-#                                         phase_index,
-#                                         0.8)
+# group = phase_function_injector.inject_function_on_data(
+#                                 function_parameters,
+#                                 group,
+#                                 selected_sensor,
+#                                 phase_index_list)
+
+# # aligning
+#     function_parameters = {'type' : 'arctan'}
+# # # group = phase_function_injector.inject_function_on_data(   
+# # #                                         function_parameters,
+# # #                                         group,
+# # #                                         selected_sensor,
+# # #                                         [phase_index_list[0]-1],
+# # #                                         alignment_factor=0.5,
+# # #                                         align_to_next=True)
+
+
+#     group = phase_function_injector.inject_function_on_data(
+#                                             function_parameters,
+#                                             group,
+#                                             selected_sensor,
+#                                             [phase_index_list[-1]+1],
+#                                             alignment_factor=0.7,
+#                                             align_to_next=False)
+
 
 
 #------------------------------------------------
@@ -135,7 +139,7 @@ data_visualizer.plot_at_grid_position(grid_position=(0,0),
 data_visualizer.show_data()
 
 
-
+exit()
 """
 TODO: test new dataset creation
 turn group into a dataframe by resetting indices
@@ -147,3 +151,51 @@ new_dataframe = pd.DataFrame(group)
 print(type(new_dataframe))
 
 """
+
+
+# plot data with anomaly
+data_visualizer.plot_at_grid_position(grid_position=(0,0),
+                                        data=group,
+                                        x_column='seconds',
+                                        y_column=selected_sensor,
+                                        add_phase_lines=True,
+                                        plot_color='green')
+
+
+
+group = data_handler.get_group_by_index(group_index)
+function_parameters = {'type' : 'constant', 'factor' : 1.4}
+
+group = phase_function_injector.inject_function_on_data(
+                                function_parameters,
+                                group,
+                                selected_sensor,
+                                phase_index_list)
+
+# function_parameters = {'type' : 'linear', 'start_factor' : 1, 'end_factor' : 1.6}
+
+# group = phase_function_injector.inject_function_on_data(
+#                                 function_parameters,
+#                                 group,
+#                                 selected_sensor,
+#                                 phase_index_list)
+
+# aligning
+function_parameters = {'type' : 'linear'}
+group = phase_function_injector.inject_function_on_data(   
+                                        function_parameters,
+                                        group,
+                                        selected_sensor,
+                                        [phase_index_list[0]-1],
+                                        alignment_factor=0.5,
+                                        align_to_next=True)
+
+function_parameters = {'type' : 'linear'}
+
+group = phase_function_injector.inject_function_on_data(
+                                        function_parameters,
+                                        group,
+                                        selected_sensor,
+                                        [phase_index_list[-1]+1],
+                                        alignment_factor=0.7,
+                                        align_to_next=False)
