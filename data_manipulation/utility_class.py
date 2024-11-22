@@ -43,11 +43,11 @@ class DataUtilityClass():
             this is used to get a random set of phases
 
             @param
-                input_list : list -- list 
+                input_list : list
         """
 
         start = random.randint(0, len(input_list)-1)
-        end = random.randint(start, len(input_list))
+        end = random.randint(start+1, len(input_list))
         return input_list[start:end]
     
 
@@ -60,11 +60,15 @@ class DataUtilityClass():
                 list : list -- list
                 number : int -- number of elements to get
         """
+        set_input = set(list)
+        if len(set_input) == 0 or len(set_input) != len(list):
+            logging.warning("List has duplicates or is empty")
+
         if max_number_of_elements > len(list):
             raise ValueError("number of elements to get is larger than the list")
         
         number = random.randint(1, max_number_of_elements)
-        return random.sample(list, number)
+        return random.sample(set_input, number)
     
     @staticmethod
     def get_one_random_element(list):
@@ -91,12 +95,14 @@ class DataUtilityClass():
                 exclude : list -- list of values to exclude (we want to exclude 1 for example as anomaly factors)
         """
         if precision:
-            value_list = np.arange(min, max, 10**-precision)
+            increments = 10**-precision
+            value_list = np.arange(min, max+increments, increments)
             if exclude:
+                value_list = [round(x, precision) for x in value_list]
                 value_list = [x for x in value_list if x not in exclude]
-            logging.DEBUG("value_list: {}".format(value_list))
+            #logging.debug("value_list: {}".format(value_list))
 
-            return round(random.choice(value_list), precision)
+            return random.choice(value_list)
         else:
             while True:
                 value = random.uniform(min, max)

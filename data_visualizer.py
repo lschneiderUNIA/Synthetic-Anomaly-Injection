@@ -140,7 +140,14 @@ class DataVisualizer():
         
         if title:
             axes.set_title(title)
+    
 
+    def set_title_at_position(self, grid_position : tuple[int, int], title : str) -> None:
+        """
+            set title at grid position
+        """
+        axes = self._get_correct_axes(grid_position)
+        axes.set_title(title)
 
 
     def _plot_data_at_axes_object(self, axes : matplotlib.axes,  x: str, y: str, add_phase_colors : bool = None) -> None:

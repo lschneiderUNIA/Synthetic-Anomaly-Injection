@@ -42,6 +42,7 @@ class DataHandler():
         sample_group = self.large_train_data_grouped.get_group(self.list_of_pd_groups[0])
         # store a list with all phase indices
         self._phase_indices_list : np.ndarray = sample_group['phase'].unique()
+        logging.debug("Phase indices list: {}".format(self._phase_indices_list))
         del sample_group
 
         logging.info("Number of groups: {}".format(self.number_of_groups))
