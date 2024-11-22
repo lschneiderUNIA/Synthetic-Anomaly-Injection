@@ -106,7 +106,8 @@ class DataVisualizer():
                               add_phase_colors : bool = False, 
                               add_phase_lines : bool = False,
                               y_limits : tuple = (0,200),
-                              x_limits : tuple = (0,13000))-> None:
+                              x_limits : tuple = (0,13000),
+                              title : str = None)-> None:
         """
             plot data at grid position
             the y columns list is supported by panda and matplotlib and does not need to handled seperately 
@@ -136,6 +137,9 @@ class DataVisualizer():
 
         if add_phase_lines:
             self._add_phase_lines(axes, data)
+        
+        if title:
+            axes.set_title(title)
 
 
 
