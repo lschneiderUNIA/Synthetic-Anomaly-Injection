@@ -1,20 +1,18 @@
 import pandas as pd
 import numpy as np
+from data_manipulation.abstract_manipulator import AbstractManipulator
 from data_management.data_handler import DataHandler
 from data_manipulation.utility_class import DataUtilityClass
+import random
 
 
-class PhaseFunctionAnomaly():
+class PhaseFunctionAnomaly(AbstractManipulator):
     """
     Base class for using different functions to change a set of phases
     also allows for aligning phases, since its bascically the same thing
     in practice, we dont go use phases, but start and end points since the alignment doesn't always change the full phase
 
-
-    works as a standard interface
-
-       
-    
+    works as a standard interface     
     """
 
     def __init__(self, data_handler : DataHandler) -> None:
@@ -22,6 +20,10 @@ class PhaseFunctionAnomaly():
             not yet sure if we need an init or all of these functions can be static
         """
         self.data_handler : DataHandler = data_handler
+
+        self.all_function_types = ['constant', 'linear', 'exponential', 'arctan']
+
+        self.function_types_for_alingment = ['linear', 'exponential', 'arctan']
 
     def _apply_function(self, data, sensor, start_index, end_index, multiplier_list):
         """
@@ -36,21 +38,99 @@ class PhaseFunctionAnomaly():
         """
         data.loc[start_index:end_index, sensor] *= multiplier_list
         return data
+    
+    def set_manipulation_parameters(self, align_to_next : bool = None, align_to_previous : bool = None):
+        """
+            sets the internal parameters for the anomaly injector
 
+            we have to handle the bool inputs of course,
+            if they aren't set we simply inject an anomaly, in this case we have to set internally if we need alignment
 
+            we need:
+                function_type
+                    factor for constant
+                start_factor
+                end_factor
+                alignment_factor (optional)                
+                align bools if current call is for simple anomaly injection
+        """
 
-    def inject_function_on_data(self, 
-                               function_parameters : dict,
-                               data : pd.DataFrame, sensor : str, 
-                               phase_index_list : list, 
-                               alignment_factor = None,
-                               align_to_next = None) -> pd.DataFrame:
+        if align_to_next and align_to_previous:
+            raise ValueError("cannot align to next and previous phase at the same time")
+        
+        
+        if align_to_next or align_to_previous:
+            # if we align, we need a alignment factor
+            # and need a compatible function
+            self.alignment_factor = DataUtilityClass.get_random_float(min = 0.1, 
+                                                                      max = 0.6, 
+                                                                      precision = 1)
+            
+            self.function_type = DataUtilityClass.get_one_random_element(self.function_types_for_alingment)
+
+        else:
+            # if we dont align, we can use any function
+            # and need to set the alignment factor to None
+            # also need to pick start and end factor
+            # and determine alignment bools
+
+            self.function_type = DataUtilityClass.get_one_random_element(self.all_function_types)
+            self.alignment_factor = None
+
+            if self.function_type == 'constant':
+                # this is a special case, we only need one factor
+                self.factor = self._get_factor()
+                self.align_to_next = True
+                self.align_to_previous = True
+                return
+
+            # 80% of the time we set one of start and end to 1.0
+            # 20% of the time we set both to a random factor     
+            # if we set both to a random factor, we have to align to both neighbouring phases     
+            if random.random() < 0.8:
+                if random.random() < 0.5:
+                    self.start_factor = 1.0
+                    self.end_factor = self._get_factor()
+                    self.align_to_next = True
+                    self.align_to_previous = False
+                else:
+                    self.end_factor = 1.0
+                    self.start_factor = self._get_factor()
+                    self.align_to_next = False
+                    self.align_to_previous = True
+            else:
+                self.start_factor = self._get_factor()
+                self.end_factor = self._get_factor()
+                self.align_to_next = True
+                self.align_to_previous = True
+            
+        
+    def _get_factor(self):
+        """
+            returns a start or end factor for the function
+            avoids having to call the same get_random_float multiple times
+            
+            we can also handle the ranges in here
+        """
+        min_factor = 0.5
+        max_factor = 1.5
+
+        return DataUtilityClass.get_random_float(min = min_factor, 
+                                                 max = max_factor, 
+                                                 precision = 1, 
+                                                 exclude = [1.0])
+
+    
+    def inject_anomaly(self, 
+                       data : pd.DataFrame, sensor : str, 
+                       phase_index_list : list, 
+                       align_to_next = None,
+                       align_to_previous = None) -> pd.DataFrame:
         """
             main interface for this class to apply a function to a set of phases
             also allows for aligning phases
 
             @param
-                function_parameters : dict  -- contains the function type and the parameters for the function
                 data : pd.DataFrame -- the data to be changed
                 sensor : str -- the sensor to be changed
                 phase_index_list : list -- the phases to be changed
@@ -58,6 +138,9 @@ class PhaseFunctionAnomaly():
                 align_to_next : bool -- if we align, we have to know if we align to the next or previous phase
 
         """
+        if align_to_next and align_to_previous:
+            raise ValueError("cannot align to next and previous phase at the same time")
+
         mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
         phase_data = data.loc[mask]
         phase_length = len(phase_data)
@@ -65,9 +148,9 @@ class PhaseFunctionAnomaly():
         start_index = phase_data.index[0]
         end_index = phase_data.index[-1]
 
-        assert end_index - start_index +1 == phase_length, "Indexing error for length of phases"
+        assert end_index - start_index + 1 == phase_length, "Indexing error for length of phases"
 
-        if alignment_factor is not None:
+        if self.alignment_factor is not None:
             """
                 if alignment factor is set, we have to align the phase_index_list to the previous or next phase
                 this means we have to calculate the initial alignment and the phase intersection and then apply the function
@@ -75,10 +158,10 @@ class PhaseFunctionAnomaly():
             """
             if align_to_next is None:
                 raise ValueError("if alignment factor is set, align_to_next must be set as well")
-            if function_parameters['type'] == 'constant':
+            if self.function_type == 'constant':
                 raise ValueError("cannot align with constant function") 
             
-            phase_length = int(phase_length * alignment_factor)
+            phase_length = int(phase_length * self.alignment_factor)
 
             # the initial alignent is the ratio between the 2 data points where the phases change
             initial_alignment = self._get_initial_alignment(data, sensor, phase_index_list, align_to_next) 
@@ -89,30 +172,31 @@ class PhaseFunctionAnomaly():
                     the end index stays the same
                 """
 
-                function_parameters['start_factor'] = 1
-                function_parameters['end_factor'] = initial_alignment
+                self.start_factor = 1
+                self.end_factor = initial_alignment
                 start_index = end_index - phase_length +1
                 if end_index - start_index +1 != phase_length:
                     raise ValueError("indexing calculation error")
-            else:
+            elif align_to_previous:
                 """
                     analog to the above, just with the start index staying the same and the end index changing
                 """
-                function_parameters['start_factor'] = initial_alignment
-                function_parameters['end_factor'] = 1
+                self.start_factor = initial_alignment
+                self.end_factor = 1
                 end_index = start_index + phase_length - 1 
                 if end_index - start_index + 1  != phase_length:
                     raise ValueError("indexing calculation error")
-                
+            else:
+                raise ValueError("alignment factor is set, but align_to_next is not set")
         
-        multiplier_list = self._get_multiplier_list(function_parameters, phase_length)     
+        multiplier_list = self._get_multiplier_list(phase_length)     
 
         return self._apply_function(data, sensor, start_index, end_index, multiplier_list)
 
 
 
 
-    def _get_multiplier_list(self, function_parameters, phase_length):
+    def _get_multiplier_list(self, phase_length):
         """
             get a list of multipliers for the chosen function
             this works off of the function parameters
@@ -123,11 +207,10 @@ class PhaseFunctionAnomaly():
                 phase_length : int -- the length of the phase
 
         """
-        function_name = function_parameters['type']
+        function_name = self.function_type
 
         if function_name == "constant":
-            factor  = function_parameters['factor']
-            multiplier_list = [factor for i in range(phase_length)]
+            multiplier_list = [self.factor for i in range(phase_length)]
             return multiplier_list
         
         elif function_name == "linear":
@@ -149,15 +232,11 @@ class PhaseFunctionAnomaly():
         else:
             raise ValueError("function name not recognized")
         
-
-        start_factor  = function_parameters['start_factor']
-        end_factor = function_parameters['end_factor']
-
         # compute initial multiplier list
         multiplier_list = [fun(x) for x in x_points]
 
         # use the utility class to scale the list of values
-        return DataUtilityClass.scale_list_of_values(multiplier_list, start_factor, end_factor)
+        return DataUtilityClass.scale_list_of_values(multiplier_list, self.start_factor, self.end_factor)
 
         
 
@@ -210,3 +289,16 @@ class PhaseFunctionAnomaly():
             ratio = aligment_value_previous / aligment_value 
 
         return ratio
+    
+
+    def requires_alignment_of_next_phase(self):
+        """
+            return align_to_next bool
+        """
+        return self.align_to_next
+    
+    def requires_alignment_of_previous_phase(self):
+        """
+            returns align_to_previous bool
+        """
+        return self.align_to_previous
