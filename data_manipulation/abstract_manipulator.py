@@ -10,17 +10,11 @@ class AbstractManipulator:
     def __init__(self, data_handler):
         self.data_handler = data_handler
 
-    def apply_manipulation(self, data : pd.DataFrame, sensor :str, phase_index_list : list, parameters : dict):
+    def apply_manipulation(self, data : pd.DataFrame, sensor :str, phase_index_list : list) -> pd.DataFrame:
         """
             applies the anomaly injection on the DataFrame for given sensor and phase list with parameter dict
             the paramters can be unique for each anomaly type
             to determine the parameters the get_parameter_dict is used 
-        """
-        pass
-
-    def get_parameter_dict(self):
-        """
-            returns a dictionary with the parameters will be used for the inject_anomaly function
         """
         pass
 
@@ -31,14 +25,14 @@ class AbstractManipulator:
         """
         pass
     
-    def requires_alignment_of_next_phase(self):
+    def requires_alignment_of_next_phase(self) -> bool:
         """
             return align_to_next bool
         """
         pass
 
 
-    def requires_alignment_of_previous_phase(self):
+    def requires_alignment_of_previous_phase(self) -> bool:
         """
             returns align_to_previous bool
         """

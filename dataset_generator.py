@@ -6,6 +6,8 @@ logging.basicConfig(level=logging.DEBUG,
                         #format="%(asctime)s [%(levelname)s] %(message)s",
                         format = '%(levelname)s - %(message)s',
 )
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+logging.getLogger('PIL').setLevel(logging.WARNING) 
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ class DatasetGenerator():
             set up the data handler, the anomaly injectors, the aligners and visualizer
 
         """
+
+
         # ------------------------------------------------
         # Injection Setting
         # TODO: include severity parameter
@@ -48,7 +52,7 @@ class DatasetGenerator():
         self.number_of_anomaly_samples = number_of_anomaly_samples
 
         # TODO: support more than 1
-        max_number_of_sensors = max_number_of_sensors
+        self.max_number_of_sensors = max_number_of_sensors
 
         #------------------------------------------------
         # Initilization and Setup
@@ -56,6 +60,7 @@ class DatasetGenerator():
 
         self.data_handler = DataHandler()
         self.sensor_list = opt.MOST_IMPORTANT_SENSOR_COLUMNS
+        logging.info("Sensor list: {}".format(self.sensor_list))
 
         self.phase_index_list = self.data_handler.get_phase_indices_list()
 
@@ -76,6 +81,7 @@ class DatasetGenerator():
         self.anomaly_injector_list = [
             self.phase_function_anomaly_injector
         ]
+        logging.debug("Anomaly injectors: {}".format(self.anomaly_injector_list))
 
 
         # store all aligners in a list
@@ -84,12 +90,14 @@ class DatasetGenerator():
             self.phase_function_anomaly_injector
         ]
 
-        visual_rows = 3 # for original, injected and aligned data
-        visual_columns = self.number_of_anomaly_samples // visual_rows + 1
+        logging.debug("Aligners: {}".format(self.aligner_list))
 
-        self.data_visualizer = DataVisualizer((visual_rows, number_of_anomaly_samples))
+        rows = self.number_of_anomaly_samples
+        columns = 1
 
-        logging.INFO("Setup complete")
+        self.data_visualizer = DataVisualizer((rows, columns))
+
+        logging.info("Setup complete")
 
 
     def generate_dataset(self):
@@ -101,32 +109,35 @@ class DatasetGenerator():
         # Big loop 
         #------------------------------------------------
 
-        for injected_sample_iterator in range(self.number_of_anomaly_samples):
+        for self.injected_sample_iterator in range(self.number_of_anomaly_samples):
+            logging.info("Generating sample: {}".format(self.injected_sample_iterator))
 
             # get random data sample (samples are groups)
             group_index = random.randint(0, self.data_handler.get_number_of_groups())
             data_sample = self.data_handler.get_group_by_index(group_index)
-            logging.info("Selected group index: {}".format(group_index))
+            logging.debug("Selected group index: {}".format(group_index))
 
             # TODO: Support multiple anomalies, such that we loop starting from here
 
             # get random phase slice as list
-            phase_index_list = DataUtilityClass.get_random_slice(phase_index_list)
-            logging.info("Selected phase indices: {}".format(phase_index_list))
+            selected_phases = DataUtilityClass.get_random_slice(self.phase_index_list)
+            logging.debug("Selected phase indices: {}".format(selected_phases))
 
             # select sensor
             # TODO: support multiple sensors
-            selected_sensor = DataUtilityClass.get_random_elements(self.sensor_list, max_number_of_elements = self.max_number_of_sensors)
+            selected_sensor = DataUtilityClass.get_random_elements(self.sensor_list,
+                                                                   max_number_of_elements = self.max_number_of_sensors)
             # returns list, so we take the first element
             selected_sensor = selected_sensor[0]
-            logging.info("Selected sensor: {}".format(selected_sensor))
+            logging.debug("Selected sensor: {}".format(selected_sensor))
 
             # plot initial data
-            self.data_visualizer.plot_at_grid_position(grid_position=(0,injected_sample_iterator),
+            self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator,0),
                                                     data=data_sample,
-                                                    sensor_list=selected_sensor,
-                                                    add_phase_lines=True,
-                                                    title = "Initial Data")
+                                                    x_column='seconds',
+                                                    y_column=selected_sensor,
+                                                    plot_color='blue',
+                                                    add_phase_lines=True)
 
             # select injector
             # get parameters
@@ -151,50 +162,60 @@ class DatasetGenerator():
             # apply
             data_sample = selected_anomaly_injector.apply_manipulation(data = data_sample,
                                                                     sensor = selected_sensor,
-                                                                    phase_index_list = phase_index_list)
+                                                                    phase_index_list = selected_phases)
+            
+            logging.debug(f"Inject anomaly: {selected_anomaly_injector}")
             
             # plot injected data
-            self.data_visualizer.plot_at_grid_position(grid_position=(1,injected_sample_iterator),
-                                                    data=data_sample,
-                                                    sensor_list=selected_sensor,
-                                                    add_phase_lines=True,
-                                                    title="Injected Data")
+            # self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator,0),
+            #                                         data=data_sample,
+            #                                         x_column='seconds',
+            #                                         y_column=selected_sensor,
+            #                                         add_phase_lines=True)
             
             #------------------------------------------------
             # Align Anomaly
             #------------------------------------------------
 
+            # check if alignment is necessary
+            align_next_phase = selected_anomaly_injector.requires_alignment_of_next_phase()
+            align_previous_phase = selected_anomaly_injector.requires_alignment_of_previous_phase()
+            # we handle the selected phase edges in here, so we don't have to do it in every aligner subclass
+            if selected_phases[0] ==  self.phase_index_list[0]:
+                align_previous_phase = False
+            if selected_phases[-1] ==  self.phase_index_list[-1]:
+                align_next_phase = False
 
-            self.handle_alignment(data = data_sample,
-                                sensor = selected_sensor,
-                                phase_index_list = phase_index_list,
-                                align_to_next = selected_anomaly_injector.requires_alignment_of_next_phase(),
-                                align_to_previous = selected_anomaly_injector.requires_alignment_of_previous_phase())            
-            
-            # if selected_anomaly_injector.requires_alignment_of_next_phase():
-            #     self.handle_alignment(align_to_next = True, align_to_previous = False)
-            # if selected_anomaly_injector.requires_alignment_of_previous_phase():
-            #     self.handle_alignment(align_to_next = False, align_to_previous = True)
+            logging.debug("Align to next/previous: {}/{}".format(align_next_phase, align_previous_phase))
 
-        
+            data_sample = self.handle_alignment(data_sample = data_sample,
+                                selected_sensor = selected_sensor,
+                                selected_phases = selected_phases,
+                                align_next_phase = align_next_phase,
+                                align_previous_phase = align_previous_phase)       
 
-            # plot aligned data
-            self.data_visualizer.plot_at_grid_position(grid_position=(2,injected_sample_iterator),
+
+            title = str(selected_anomaly_injector) + " " + str(selected_sensor) + " " + str(selected_phases)   
+
+            # plot final data
+            self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator, 0),
                                                     data=data_sample,
-                                                    sensor_list=selected_sensor,
-                                                    add_phase_lines=True,
-                                                    title="Aligned Data")
+                                                    x_column='seconds',
+                                                    y_column=selected_sensor,
+                                                    plot_color='red',
+                                                    add_phase_lines=True)
+            
 
         # TODO: save data
 
-
+        self.data_visualizer.show_data()
 
     def handle_alignment(self,
                          data_sample : pd.DataFrame,
                          selected_sensor : str,
-                         phase_index_list : list,
-                         align_to_next : bool, 
-                         align_to_previous : bool):
+                         selected_phases : list,
+                         align_next_phase : bool, 
+                         align_previous_phase : bool) -> pd.DataFrame:
         """
             handles the alignent of phases, we try to align by gradient first, if this fails we use other aligners
             method is the same as anomaly injection, just with the align bool parameters
@@ -203,33 +224,63 @@ class DatasetGenerator():
             
         """
 
-        if align_to_next:        
+        if align_next_phase:        
+            new_selected_phases = [selected_phases[-1]+1] # compute this here, so its not handeled by each subclass
+            logging.debug("New selected phases: {}".format(new_selected_phases))
+            assert all([phase in self.phase_index_list] for phase in new_selected_phases)
+            # TODO: support more than 1 phase during alignment
             data_sample, success = self.by_gradient_aligner.align_by_gradient(data = data_sample, 
                                                                               sensor = selected_sensor, 
-                                                                              phase_index_list = phase_index_list,
-                                                                              align_to_next = align_to_next)
+                                                                              phase_index_list = new_selected_phases,
+                                                                              align_next_phase = True,
+                                                                              align_previous_phase = False)
+            
             if not success:
+                logging.debug("Alignment by gradient failed, trying other aligners")
+
                 selected_aligner = DataUtilityClass.get_one_random_element(self.aligner_list)
                 assert isinstance(selected_aligner, AbstractManipulator)
 
-                selected_aligner.set_manipulation_parameters(align_to_next = align_to_next)
+                selected_aligner.set_manipulation_parameters(align_next_phase = True)
                 data_sample = selected_aligner.apply_manipulation(data = data_sample,
                                                                   sensor = selected_sensor,
-                                                                  phase_index_list = phase_index_list, 
-                                                                  align_to_next = align_to_next)
+                                                                  phase_index_list = new_selected_phases)
+                logging.debug(f"Align next: {selected_aligner}")
+
                 
-        if align_to_previous:
+        if align_previous_phase:
+            new_selected_phases = [selected_phases[0]-1]
+            logging.debug("New selected phases: {}".format(new_selected_phases))
+
+            assert all([phase in self.phase_index_list] for phase in new_selected_phases)
+
             data_sample, success = self.by_gradient_aligner.align_by_gradient(data = data_sample, 
                                                                               sensor = selected_sensor, 
-                                                                              phase_index_list = phase_index_list,
-                                                                              align_to_previous = align_to_previous)
+                                                                              phase_index_list = new_selected_phases,
+                                                                              align_previous_phase = True,
+                                                                              align_next_phase = False)
+            
             if not success:
-
+                logging.debug("Alignment by gradient failed, trying other aligners")
                 selected_aligner = DataUtilityClass.get_one_random_element(self.aligner_list)
                 assert isinstance(selected_aligner, AbstractManipulator)
 
-                selected_aligner.set_manipulation_parameters(align_to_previous = align_to_previous)
+                selected_aligner.set_manipulation_parameters(align_previous_phase = True)
                 data_sample = selected_aligner.apply_manipulation(data = data_sample,
                                                                   sensor = selected_sensor,
-                                                                  phase_index_list = phase_index_list, 
-                                                                  align_to_previous = align_to_previous)
+                                                                  phase_index_list = new_selected_phases)
+                logging.debug(f"Align previous: {selected_aligner}")
+
+        self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator, 0),
+                                                    data=data_sample,
+                                                    x_column='seconds',
+                                                    y_column=selected_sensor,
+                                                    plot_color='red',
+                                                    add_phase_lines=True)
+        
+        return data_sample
+
+
+if __name__ == "__main__":
+    dataset_generator = DatasetGenerator(number_of_anomaly_samples = 3, max_number_of_sensors = 1)
+    dataset_generator.generate_dataset()

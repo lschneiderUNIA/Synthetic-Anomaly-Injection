@@ -17,7 +17,9 @@ class ByGradientAligner():
     """
 
 
-    def __init__(self, data_handler : DataHandler) -> None:
+    def __init__(self, data_handler : DataHandler,
+                 desired_gradient : float = 1,
+                 minimal_sequence_length : int = 3) -> None:
         """
             setup data handler
             and parameters for the aligner
@@ -32,8 +34,8 @@ class ByGradientAligner():
 
 
         # 3 is the current minimum sequence length, 
-        self.minimal_sequence_length = 3
-        self.desired_gradient = 1
+        self.minimal_sequence_length = minimal_sequence_length
+        self.desired_gradient = desired_gradient
 
     def _find_consecutive_indices(self, input_list : list) -> list:
         """
@@ -62,18 +64,19 @@ class ByGradientAligner():
                                data : pd.DataFrame, 
                                sensor : str, 
                                phase_index_list : list,
-                               align_to_next : bool,
-                               align_to_previous : bool
+                               align_next_phase : bool,
+                               align_previous_phase : bool
                                ) -> pd.DataFrame:
         """
             main interface for this class
-            finds gradient in the phase_index_list and aligns to the previous or following phase depending on align_to_next
+            finds gradient in the phase_index_list and aligns to the previous or following phase depending on align_next_phase
 
             @param
                 data : pd.DataFrame -- the data to be changed
                 sensor : str -- the sensor to be changed
                 phase_index_list : list -- the phases where we search for the gradient
-                align_to_next : bool -- align to next or previous phase
+                align_next_phase : bool -- align next phase of original injection
+                align_previous_phase : bool -- align previous phase of original injection
 
         """
         mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
@@ -82,14 +85,14 @@ class ByGradientAligner():
 
         desired_gradient = self.desired_gradient
 
-        if align_to_next and align_to_previous:
-            logging.error("By-Gradient Aligner: align_to_next and align_to_previous are both True, we handle these seperately")
+        if align_next_phase and align_previous_phase:
+            logging.error("By-Gradient Aligner: align_next_phase and align_previous_phase are both True, we handle these seperately")
             return data, False
 
-        if align_to_next:
+        if align_previous_phase:
             logging.info("aligning not implemented")
             return data, False
-        else: # align to previous phase
+        else: # align to next phase
 
             # get points where phase changes
             phase_change_point = sensor_data.index[0] 
@@ -124,21 +127,19 @@ class ByGradientAligner():
         
         # if we cant find a sequence, we cant align
         if len(sequence) < self.minimal_sequence_length:
-            print("No sequence found")
-            print(sequence)
+            logging.debug("By-Gradient Aligner: Could not find a sequence")
             return data, False
     
         # note: sequence is inclusive
 
         # get corresponding indices in the data
         sequence_in_data = sensor_data.iloc[sequence].index
-        print("seq: " ,sequence)
-
+        logging.debug("By-Gradient Aligner: Found sequence length: {}".format(len(sequence_in_data)))
         
 
         # next we need to change the values from the beginning of the phase to the start of the sequence, so it aligns with the previous phase
         #diff at phase change points
-        if align_to_next:
+        if align_previous_phase:
             pass # not implemented
         else:
             diff = previous_phase_value - phase_change_point_value
@@ -152,7 +153,7 @@ class ByGradientAligner():
 
         # these are some special cases, where we cant align as easily
         # TODO: implement different strategies for these cases
-        if not align_to_next and end_of_sequence[1] < previous_phase_value:
+        if not align_next_phase and end_of_sequence[1] < previous_phase_value:
             logging.info("By-Gradient Aligner: end of sequence is lower than previous phase value")
             return data, False
 
@@ -205,4 +206,4 @@ class ByGradientAligner():
         mask = data.index.isin(range(start_of_sequence[0], end_of_sequence[0] + 1))
         data.loc[mask, sensor] = new_values
 
-        return data, True
+        return data
