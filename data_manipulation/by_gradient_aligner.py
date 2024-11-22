@@ -63,6 +63,7 @@ class ByGradientAligner():
                                sensor : str, 
                                phase_index_list : list,
                                align_to_next : bool,
+                               align_to_previous : bool
                                ) -> pd.DataFrame:
         """
             main interface for this class
@@ -80,6 +81,10 @@ class ByGradientAligner():
         sensor_data = data[mask]
 
         desired_gradient = self.desired_gradient
+
+        if align_to_next and align_to_previous:
+            logging.error("By-Gradient Aligner: align_to_next and align_to_previous are both True, we handle these seperately")
+            return data, False
 
         if align_to_next:
             logging.info("aligning not implemented")
@@ -152,7 +157,7 @@ class ByGradientAligner():
             return data, False
 
 
-        return self._change_values_by_linear_function(data, sensor, sequence_in_data)
+        return self._change_values_by_linear_function(data, sensor, sequence_in_data), True
 
         
 
