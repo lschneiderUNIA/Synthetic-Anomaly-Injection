@@ -8,12 +8,12 @@ import logging
 class PhaseRangeChanger():
     """
     basically takes a list of phases and adjusts the phase range 
-    thereby making it a much flatter curve for example 
-    or increasing the peaks and valleys
+    thereby making it much flatter or steeper curves ie increasing the peaks and valleys
+    
+    This is done without changing the borders
 
-    probably needs some careful tuning of parameters
-
-       
+    TODO: probably needs some careful tuning of parameters      
+          maybe do one where the borders are also changed and we have automatic adjustment no neighbouring phases?
     
     """
 
@@ -60,24 +60,39 @@ class PhaseRangeChanger():
         return data
     
 
-    def _get_multiplier_list(self, phase_length : int, parameters : dict) -> list:
+    def _get_multiplier_list_without_borders(self, phase_length : int, parameters : dict) -> list:
+        """ 
+            the idea is to have a value list that rises quickly to the factor, stays there and then falls quickly to 1
+
+            we do this by using a gaussian function to rise and fall
+            and have a middle part that is just the factor
+        """
 
         factor = parameters['factor']
+
+        percentage_for_rise_and_fall = 0.1
+        adapt_length = int(phase_length * percentage_for_rise_and_fall)
         #function_type = parameters['type']
         # right now only support gaussian function
+        values = []
 
-        x_points = np.linspace(-1, 1, phase_length)
+        x_range = 2
+        # get x positions for the gaussian function
+        x_points = np.linspace(-x_range, x_range, adapt_length*2)
 
+        # define the gaussian function
+        # not sure which values are best 
         amplitude = 1
         mu = 0
-        sigma = 0.5
-
+        sigma = 1
         gaussian_function = lambda x : amplitude * np.exp(-((x-mu)**2)/(2*sigma**2))
-        gaussian = np.exp(-x_points**2)
-        return DataUtilityClass.scale_list_of_values(gaussian, 1, factor)
+        # compute gaussian values and scale between 1 and factor
+        values = [gaussian_function(x) for x in x_points]
+        values = DataUtilityClass.scale_list_of_values(values, 1, factor)
 
-
-
+        # add the middle part of just factor
+        values = values[0:adapt_length] + [factor] * (phase_length - adapt_length*2) + values[adapt_length:]
+        return values
 
 
 
@@ -116,7 +131,7 @@ class PhaseRangeChanger():
 
         phase_length = len(phase_data_sensor)
 
-        multiplier_list = self._get_multiplier_list(phase_length, parameters)
+        multiplier_list = self._get_multiplier_list_without_borders(phase_length, parameters)
 
 
         phase_data_sensor *= multiplier_list
