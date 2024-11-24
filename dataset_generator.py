@@ -65,7 +65,7 @@ class DatasetGenerator():
         self.phase_index_list = self.data_handler.get_phase_indices_list()
 
         # set seed
-        random.seed(12)
+        random.seed(13)
 
 
         phase_function_anomaly_injector = PhaseFunctionAnomaly(self.data_handler)
@@ -140,6 +140,9 @@ class DatasetGenerator():
                                                     x_column='seconds',
                                                     y_column=selected_sensor,
                                                     plot_color='blue',
+                                                    x_limits=(0, None),
+                                                    y_limits=(0, None),
+                                                    plot_label="Original Data",
                                                     add_phase_lines=True)
 
             # select injector
@@ -207,6 +210,9 @@ class DatasetGenerator():
                                                     x_column='seconds',
                                                     y_column=selected_sensor,
                                                     plot_color='red',
+                                                    x_limits=(0, None),
+                                                    y_limits=(0, None),
+                                                    plot_label="Injected Data",
                                                     add_phase_lines=True)
             
             self.data_visualizer.set_title_at_position(grid_position=(self.injected_sample_iterator, 0), title=title)
@@ -282,5 +288,5 @@ class DatasetGenerator():
 
 
 if __name__ == "__main__":
-    dataset_generator = DatasetGenerator(number_of_anomaly_samples = 2, max_number_of_sensors = 1)
+    dataset_generator = DatasetGenerator(number_of_anomaly_samples = 5, max_number_of_sensors = 1)
     dataset_generator.generate_dataset()
