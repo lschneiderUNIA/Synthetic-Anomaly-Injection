@@ -37,26 +37,46 @@ class ByGradientAligner():
         self.minimal_sequence_length = minimal_sequence_length
         self.desired_gradient = desired_gradient
 
-    def _find_consecutive_indices(self, input_list : list) -> list:
+    def _find_consecutive_indices(self,
+                                  input_list : list,
+                                  align_next_phase,
+                                  align_previous_phase) -> list:
         """
-            finds consecutive values in a list
+            finds consecutive indices values in a list
             we use it to find consecutive indices in the gradient list
-            returns the first sequence with length >= self.minimal_sequence_length
+            for align_next_phase:
+                returns the first sequence with length >= self.minimal_sequence_length
+            for align_previous_phase:
+                returns the last sequence with length >= self.minimal_sequence_length
+
         """
+
+        if align_next_phase:
+            iterator_list = range(len(input_list)-1)
+        else:
+            # reverse list to get the last sequence, at the end we reverse it again
+            iterator_list = iterator_list[::-1]
+
         sequence = []
         running_sequence = []
         for iter in range(len(input_list)-1):
             index = input_list[iter]
             if index == input_list[iter+1]-1:
+                # value is consecutive
                 if len(running_sequence) == 0:
+                    # if we have a new sequence, we need to add 2 indices
                     running_sequence.append(index)
                 running_sequence.append(index+1)
-            else:
+            else: # valuen not consecutive
+                # update best sequence and check if > minimal_sequence_length, then return                
                 sequence = running_sequence
                 running_sequence = []
                 if len(sequence) >= self.minimal_sequence_length:
                     break
 
+
+        if align_previous_phase:
+            sequence = sequence[::-1]
         return sequence
 
 
@@ -90,9 +110,15 @@ class ByGradientAligner():
             return data, False
 
         if align_previous_phase:
-            logging.info("aligning not implemented")
-            return data, False
-        else: # align to next phase
+            phase_change_point = sensor_data.index[-1]
+            next_phase_end_point = phase_change_point + 1 
+
+            #values at points
+            phase_change_point_value = data.loc[data.index == phase_change_point][sensor].iloc[0]
+            next_phase_value = data.loc[data.index == next_phase_end_point][sensor].iloc[0]
+
+
+        else: # align next phase
 
             # get points where phase changes
             phase_change_point = sensor_data.index[0] 
@@ -107,10 +133,9 @@ class ByGradientAligner():
                 desired_gradient = -desired_gradient
             # else find positive gradient
             
-            gradients_of_phases = np.gradient(sensor_data[sensor])
-            gradient_index = np.where(gradients_of_phases <= desired_gradient)
-            gradient_index = gradient_index[0]
-
+        gradients_of_phases = np.gradient(sensor_data[sensor])
+        gradient_index = np.where(gradients_of_phases <= desired_gradient)
+        gradient_index = gradient_index[0]
             
         # seconds_index = sensor_data['seconds'].iloc[gradient_index]
         # used this during implementation to test, maybe useful again in the future
@@ -123,14 +148,16 @@ class ByGradientAligner():
         #                                 plot_color='red')
         
         # find consecutive indices in the list
-        sequence = self._find_consecutive_indices(gradient_index)
+        # we use the first or last sequence with length >= self.minimal_sequence_length,
+        # depending on the align_next_phase parameter
+        sequence = self._find_consecutive_indices(gradient_index, align_next_phase, align_previous_phase)
         
         # if we cant find a sequence, we cant align
         if len(sequence) < self.minimal_sequence_length:
             logging.debug("By-Gradient Aligner: Could not find a sequence")
             return data, False
     
-        # note: sequence is inclusive
+        # note: sequence is inclusive, ie last index still has the gradient
 
         # get corresponding indices in the data
         sequence_in_data = sensor_data.iloc[sequence].index
@@ -143,7 +170,6 @@ class ByGradientAligner():
             pass # not implemented
         else:
             diff = previous_phase_value - phase_change_point_value
-            print("diff: ", diff)
             mask = data.index.isin(range(phase_change_point, sequence_in_data[0] + 1))
             data.loc[mask, sensor] = data.loc[mask][sensor] + diff
             del mask
