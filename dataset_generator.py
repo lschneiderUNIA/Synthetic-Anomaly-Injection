@@ -65,12 +65,13 @@ class DatasetGenerator():
         self.phase_index_list = self.data_handler.get_phase_indices_list()
 
         # set seed
-        random.seed(42)
+        random.seed(12)
 
 
-        self.phase_function_anomaly_injector = PhaseFunctionAnomaly(self.data_handler)
-        self.by_gradient_aligner = ByGradientAligner(self.data_handler)
+        phase_function_anomaly_injector = PhaseFunctionAnomaly(self.data_handler)
         phase_range_changer = PhaseRangeChanger(self.data_handler)
+
+        self.by_gradient_aligner = ByGradientAligner(self.data_handler)
 
         # anomaly_injectors = [
         #     "phase_function_injector" : phase_function_anomaly_injector,
@@ -79,15 +80,17 @@ class DatasetGenerator():
 
         # store all anomaly injectors in a list
         self.anomaly_injector_list = [
-            self.phase_function_anomaly_injector
+            phase_range_changer
         ]
         logging.debug("Anomaly injectors: {}".format(self.anomaly_injector_list))
 
 
         # store all aligners in a list
         # except the by_gradient_aligner, since we currently use this as preferred method
+        # but does not work for all cases
+        # TODO: if I add more aligners, we could just try a random one until one is successful
         self.aligner_list = [
-            self.phase_function_anomaly_injector
+            phase_function_anomaly_injector
         ]
 
         logging.debug("Aligners: {}".format(self.aligner_list))
@@ -166,11 +169,12 @@ class DatasetGenerator():
             
             logging.debug(f"Inject anomaly: {selected_anomaly_injector}")
             
-            # plot injected data
+            #plot injected data
             # self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator,0),
             #                                         data=data_sample,
             #                                         x_column='seconds',
             #                                         y_column=selected_sensor,
+            #                                         plot_color='green',
             #                                         add_phase_lines=True)
             
             #------------------------------------------------
@@ -195,7 +199,7 @@ class DatasetGenerator():
                                 align_previous_phase = align_previous_phase)       
 
 
-            title = str(selected_anomaly_injector) + " " + str(selected_sensor) + " " + str(selected_phases)   
+            title = str(selected_anomaly_injector) + " | " + str(selected_sensor) + " | " + str(selected_phases)   
 
             # plot final data
             self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator, 0),
@@ -204,6 +208,8 @@ class DatasetGenerator():
                                                     y_column=selected_sensor,
                                                     plot_color='red',
                                                     add_phase_lines=True)
+            
+            self.data_visualizer.set_title_at_position(grid_position=(self.injected_sample_iterator, 0), title=title)
             
 
         # TODO: save data
@@ -271,16 +277,10 @@ class DatasetGenerator():
                                                                   phase_index_list = new_selected_phases)
                 logging.debug(f"Align previous: {selected_aligner}")
 
-        self.data_visualizer.plot_at_grid_position(grid_position=(self.injected_sample_iterator, 0),
-                                                    data=data_sample,
-                                                    x_column='seconds',
-                                                    y_column=selected_sensor,
-                                                    plot_color='red',
-                                                    add_phase_lines=True)
         
         return data_sample
 
 
 if __name__ == "__main__":
-    dataset_generator = DatasetGenerator(number_of_anomaly_samples = 3, max_number_of_sensors = 1)
+    dataset_generator = DatasetGenerator(number_of_anomaly_samples = 2, max_number_of_sensors = 1)
     dataset_generator.generate_dataset()
