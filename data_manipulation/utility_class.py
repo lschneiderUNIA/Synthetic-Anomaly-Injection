@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import pandas as pd
 import logging
 class DataUtilityClass():
     """"
@@ -10,6 +11,62 @@ class DataUtilityClass():
     """
     def __init__(self):
         pass
+
+    @staticmethod
+    def get_phase_change_ratio(data : pd.DataFrame, 
+                               sensor : str, 
+                               phase_index_list : list,
+                               align_next_phase : bool,
+                               align_previous_phase) -> float:
+        """
+            calculate the ratio between the datapoints where the phases change
+            this is called the initial alignment
+
+            we have 2 cases depending on the align_next_phase parameter, both cases work very similar, just with different indices
+            we have assured before this function call, that align_next_phase and align_previous_phase are not both True
+            also phase_index_list is in the data
+
+            @param
+                data : pd.DataFrame -- the data
+                sensor : str -- the sensor
+                phase_index_list : list -- the phases
+        """
+        if align_next_phase and align_previous_phase:
+            raise ValueError("Phase Change Ratio: Both align_next_phase and align_previous_phase are True")
+        if not align_next_phase and not align_previous_phase:
+            raise ValueError("Phase Change Ratio: Both align_next_phase and align_previous_phase are False")
+        
+        if align_next_phase:
+            # get first phase in the list
+            phase = phase_index_list[0]
+
+            # get the first data point of the phases to be aligned
+            # and the previous data in the phase before
+            phase_data = data.loc[data['phase'] == phase]
+            phase_data_start_index = phase_data.index[0]
+            previous_phase_end_index = phase_data_start_index -1 
+            
+            # get the values of the data points
+            # the loc returns a series with 1 value, with iloc we get the value itself
+            phase_data_start_value = data.loc[data.index == phase_data_start_index][sensor].iloc[0]
+            previous_phase_end_value = data.loc[data.index == previous_phase_end_index][sensor].iloc[0]
+
+            ratio = previous_phase_end_value / phase_data_start_value
+
+        else:
+            # meaning aligning the previous phase of the original anomaly injection
+            phase = phase_index_list[-1]
+            
+            phase_data = data.loc[data['phase'] == phase]
+            phase_data_end_index = phase_data.index[-1]       
+            next_phase_start_index = phase_data_end_index +1
+
+            phase_data_end_value = data.loc[data.index == phase_data_end_index][sensor].iloc[0]
+            next_phase_start_value = data.loc[data.index == next_phase_start_index][sensor].iloc[0]
+
+            ratio = next_phase_start_value / phase_data_end_value 
+
+        return ratio
 
     @staticmethod
     def scale_list_of_values(value_list, new_min, new_max):

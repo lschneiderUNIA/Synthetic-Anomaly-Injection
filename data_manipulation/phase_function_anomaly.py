@@ -129,7 +129,8 @@ class PhaseFunctionAnomaly(AbstractManipulator):
 
     
     def apply_manipulation(self, 
-                       data : pd.DataFrame, sensor : str, 
+                       data : pd.DataFrame, 
+                       sensor : str, 
                        phase_index_list : list) -> pd.DataFrame:
         """
             main interface for this class to apply a function to a set of phases
@@ -166,21 +167,21 @@ class PhaseFunctionAnomaly(AbstractManipulator):
             if self.function_type == 'constant':
                 raise ValueError("cannot align with constant function") 
             
-            logging.debug(phase_length)
             phase_length = int(phase_length * self.alignment_factor)
-            logging.debug(phase_length)
 
-            # the initial alignent is the ratio between the 2 data points where the phases change
-            # initial_alignment = self._get_initial_alignment(data, 
-            #                                                 sensor,
-            #                                                 phase_index_list) 
+            #the initial alignent is the ratio between the 2 data points where the phases change
+            initial_alignment = DataUtilityClass.get_phase_change_ratio(data, 
+                                                                        sensor,
+                                                                        phase_index_list,
+                                                                        self.align_next_phase,
+                                                                        self.align_previous_phase) 
 
             if self.align_next_phase:
                 """
                     if we align to the next phase, we have to change the start index according to the alignment factor ie "new phase length"
                     the end index stays the same
                 """
-                self.start_factor = self.anomaly_injection_end
+                self.start_factor = initial_alignment
                 self.end_factor = 1
                 end_index = start_index + phase_length - 1 
                 if end_index - start_index +1 != phase_length:
@@ -190,7 +191,7 @@ class PhaseFunctionAnomaly(AbstractManipulator):
                     analog to the above, just with the start index staying the same and the end index changing
                 """
                 self.start_factor = 1
-                self.end_factor = self.anomaly_injection_start
+                self.end_factor = initial_alignment
                 start_index = end_index - phase_length +1
                 
                 if end_index - start_index + 1  != phase_length:
@@ -246,57 +247,6 @@ class PhaseFunctionAnomaly(AbstractManipulator):
 
         # use the utility class to scale the list of values
         return DataUtilityClass.scale_list_of_values(multiplier_list, self.start_factor, self.end_factor)
-
-        
-
-    def _get_initial_alignment(self, 
-                               data : pd.DataFrame, 
-                               sensor : str, 
-                               phase_index_list : list) -> float:
-        """
-            calculate the ratio between the datapoints where the phases change
-            this is called the initial alignment
-
-            we have 2 cases depending on the align_next_phase parameter, both cases work very similar, just with different indices
-            we have assured before this function call, that align_next_phase and align_previous_phase are not both True
-            also phase_index_list is in the data
-
-            @param
-                data : pd.DataFrame -- the data
-                sensor : str -- the sensor
-                phase_index_list : list -- the phases
-        """
-        if self.align_next_phase:
-            # get first phase in the list
-            phase = phase_index_list[0]
-
-            # get the first data point of the phases to be aligned
-            # and the previous data in the phase before
-            phase_data = data.loc[data['phase'] == phase]
-            alignment_index = phase_data.index[0]
-            alignment_index_previous_phase = alignment_index -1 
-            
-            # get the values of the data points
-            # the loc returns a series with 1 value, with iloc we get the value itself
-            aligment_value = data.loc[data.index == alignment_index][sensor].iloc[0]
-            aligment_value_previous = data.loc[data.index == alignment_index_previous_phase][sensor].iloc[0]
-
-            ratio = aligment_value_previous / aligment_value
-
-        else:
-            # meaning aligning the previous phase of the original anomaly injection
-            phase = phase_index_list[-1]
-            
-            phase_data = data.loc[data['phase'] == phase]
-            alignment_index = phase_data.index[0]       
-            alignment_index_next_phase = alignment_index +1
-
-            aligment_value = data.loc[data.index == alignment_index][sensor].iloc[0]
-            aligment_value_next = data.loc[data.index == alignment_index_next_phase][sensor].iloc[0]
-
-            ratio = aligment_value_next / aligment_value 
-
-        return ratio
     
 
     def requires_alignment_of_next_phase(self):
