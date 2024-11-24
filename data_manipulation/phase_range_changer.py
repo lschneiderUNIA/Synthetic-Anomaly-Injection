@@ -149,7 +149,7 @@ class PhaseRangeChanger(AbstractManipulator):
                 self.sub_type = "right_tailing"
                 self.align_next_phase = True
 
-            self.factor = DataUtilityClass.get_random_float(0.4, 1.6, precision=2, exclude=[0.9,1,1.1])
+            self.factor = DataUtilityClass.get_random_float(0.4, 1.6, precision=1, exclude=[0.9,1,1.1])
         
         else:
             # should never be raised 
