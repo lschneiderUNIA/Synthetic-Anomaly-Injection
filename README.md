@@ -1,4 +1,4 @@
-# Synthethic Anomaly Injection For Phase-based Data
+# Synthethic Anomaly Injection for Phase-based Data
 This project is built around an anomaly detection tool for industrial machinery in a predictive maintenance context. The main motivation is based on the problem of few existing anamalous data samples to verify anomaly detection methods. We plan to publish a paper detailing the problem, related results and the methodology employed.
 
 ## Requirements
