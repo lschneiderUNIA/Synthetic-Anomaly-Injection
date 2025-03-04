@@ -19,9 +19,10 @@ class PhaseFunctionAnomaly(AbstractManipulator):
         """
             not yet sure if we need an init or all of these functions can be static
         """
-        self.data_handler : DataHandler = data_handler
-
-        self.all_function_types = ['constant', 'linear', 'exponential', 'arctan']
+        super().__init__(data_handler)
+        self.on_selected_phases = True
+        self.on_selected_sensors = True
+        self.all_function_types = ['constant', 'exponential', 'arctan']
 
         self.function_types_for_alingment = ['exponential', 'arctan']
 
@@ -40,7 +41,8 @@ class PhaseFunctionAnomaly(AbstractManipulator):
         return data
     
     def __str__(self):
-        return f"PhaseFunctionAnomaly, {self.function_type}, align factor {self.alignment_factor}, start/end {self.start_factor}/{self.end_factor}"
+        align_string = self.alignment_factor if self.alignment_factor else "None"
+        return f"PhaseFunctionAnomaly, {self.function_type}, {align_string}, start/end {round(self.start_factor,2)}/{round(self.end_factor,2)}"
     
     def set_manipulation_parameters(self, align_next_phase : bool = False, align_previous_phase : bool = False):
         """
@@ -83,7 +85,7 @@ class PhaseFunctionAnomaly(AbstractManipulator):
 
             if self.function_type == 'constant':
                 # this is a special case, we only need one factor
-                self.factor = self._get_factor()
+                self.factor = DataUtilityClass.get_anomaly_factor()
                 self.align_next_phase = True
                 self.align_previous_phase = True
                 return
@@ -94,17 +96,18 @@ class PhaseFunctionAnomaly(AbstractManipulator):
             if random.random() < 0.8:
                 if random.random() < 0.5:
                     self.start_factor = 1.0
-                    self.end_factor = self._get_factor()
+                    self.end_factor = DataUtilityClass.get_anomaly_factor()
                     self.align_next_phase = True
                     self.align_previous_phase = False
                 else:
                     self.end_factor = 1.0
-                    self.start_factor = self._get_factor()
+                    self.start_factor = DataUtilityClass.get_anomaly_factor()
+
                     self.align_next_phase = False
                     self.align_previous_phase = True
             else:
-                self.start_factor = self._get_factor()
-                self.end_factor = self._get_factor()
+                self.start_factor = DataUtilityClass.get_anomaly_factor()
+                self.end_factor = DataUtilityClass.get_anomaly_factor()
                 self.align_next_phase = True
                 self.align_previous_phase = True
 
@@ -112,20 +115,6 @@ class PhaseFunctionAnomaly(AbstractManipulator):
             self.anomaly_injection_end = self.end_factor
             
         
-    def _get_factor(self):
-        """
-            returns a start or end factor for the function
-            avoids having to call the same get_random_float multiple times
-            
-            we can also handle the ranges in here
-        """
-        min_factor = 0.5
-        max_factor = 1.5
-
-        return DataUtilityClass.get_random_float(min = min_factor, 
-                                                 max = max_factor, 
-                                                 precision = 1, 
-                                                 exclude = [0.9, 1.0, 1,1])
 
     
     def apply_manipulation(self, 
@@ -247,16 +236,3 @@ class PhaseFunctionAnomaly(AbstractManipulator):
 
         # use the utility class to scale the list of values
         return DataUtilityClass.scale_list_of_values(multiplier_list, self.start_factor, self.end_factor)
-    
-
-    def requires_alignment_of_next_phase(self):
-        """
-            return align_next_phase bool
-        """
-        return self.align_next_phase
-    
-    def requires_alignment_of_previous_phase(self):
-        """
-            returns align_previous_phase bool
-        """
-        return self.align_previous_phase

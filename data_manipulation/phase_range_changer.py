@@ -23,47 +23,14 @@ class PhaseRangeChanger(AbstractManipulator):
         """
             not yet sure if we need an init or all of these functions can be static
         """
-        self.data_handler : DataHandler = data_handler
-
-        self.all_functions = ["simple_gaussian"]
+        super().__init__(data_handler)
+        self.on_selected_phases = True
+        self.on_selected_sensors = True
+        self.all_functions = ["gaussian", "only_max", "only_min", "constant"]
+        self.all_centering_techniques = ["median", "mid_range"]
 
     def __str__(self) -> str:  
-        return f"PhaseRangeChanger: {self.function_type}+{self.sub_type}, factor {self.factor}, next/previous alignment {self.align_next_phase}/{self.align_previous_phase}"
-
-    def old__apply_range_change_without_borders(self, data : pd.DataFrame, sensor :str, phase_index_list : list, factor : float) -> pd.DataFrame:
-        """
-            apply a range change to a set of phases without changing the borders
-            this way we do not have to align phases
-
-            this works by centering the phase around the "median" of the start and end values,
-
-            @param
-                data : pd.DataFrame -- the data to be changed
-                sensor : str -- the sensor to be changed
-                phase_index_list : list -- the phases to be changed
-                factor : float -- factor to change the range of the phases
-        """
-        mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
-        phase_data = data.loc[mask]
-        # phase_data_min = phase_data[sensor].min()
-        # phase_data_max = phase_data[sensor].max()
-
-        phase_data_start = phase_data[sensor].iloc[0]
-        phase_data_end = phase_data[sensor].iloc[-1]
-
-        phase_data_median = (phase_data_start + phase_data_end) / 2
-
-        phase_data_sensor = phase_data[sensor] - phase_data_median
-        if phase_data_sensor.min() > 0 or phase_data_sensor.max() < 0:
-            logging.debug("PhaseRangeChanger: changing without borders not effective")
-            logging.debug()
-
-        phase_data_sensor *= factor
-
-        phase_data_sensor += phase_data_median
-
-        data.loc[mask, sensor] = phase_data_sensor
-        return data
+        return f"PhaseRangeChanger: {self.function_type} {self.sub_type}, factor {self.factor}"
     
     def _get_mulitpliers_for_gaussian(self, phase_length) -> str:
         """ 
@@ -95,16 +62,17 @@ class PhaseRangeChanger(AbstractManipulator):
         values = [gaussian_function(x) for x in x_points]
         values = DataUtilityClass.scale_list_of_values(values, 1, factor)
 
-        if self.sub_type == "simple":
+        if self.sub_type == "symmetric":
             # add the middle part of just factor
             values = values[0:adapt_length] + [factor] * (phase_length - adapt_length*2) + values[adapt_length:]
         elif self.sub_type == "right_tailing":
             # end remains factor
             values = values[0:adapt_length] + [factor] * (phase_length - adapt_length)
-        else: # self.sub_type == "left_tailing":
+        elif self.sub_type == "left_tailing":
             # start remains factor
             values = [factor] * (phase_length - adapt_length) + values[adapt_length:]
-
+        else:
+            raise ValueError(f"Phase Range Changer, get multipliers for gaussian: sub type {self.sub_type} not supported")
         return values
 
     def _get_multiplier_list(self, phase_length : int) -> list:
@@ -116,6 +84,8 @@ class PhaseRangeChanger(AbstractManipulator):
 
         if self.function_type == "gaussian":            
             return self._get_mulitpliers_for_gaussian(phase_length)
+        elif self.function_type == "constant":
+            return [self.factor] * phase_length
    
             
     def set_manipulation_parameters(self):
@@ -127,37 +97,54 @@ class PhaseRangeChanger(AbstractManipulator):
             align_next_phase : bool -- if the next phase should be aligned to the end of the current phase
             align_previous_phase : bool -- if the previous phase should be aligned to the start of the current phase
 
+
             
         """
         selected_function = DataUtilityClass.get_one_random_element(self.all_functions)
+        self.sub_type = "" # currently only used for gaussian function, but needed for __str__ function
+        self.centering_technqiue = DataUtilityClass.get_one_random_element(self.all_centering_techniques)
 
-        if selected_function == "simple_gaussian":
+
+        if selected_function == "constant": 
+            self.function_type = "constant"
+            self.align_next_phase = True
+            self.align_previous_phase = True
+            self.factor = DataUtilityClass.get_anomaly_factor()
+
+        elif selected_function == "gaussian":
             self.function_type = "gaussian"
             self.align_next_phase = False
             self.align_previous_phase = False
+            self.factor = DataUtilityClass.get_anomaly_factor()
+
 
             # we have different subtypes for the gaussian function
-            # simple, left_tailing, right_tailing: meaning if the factor starts/returns to 1
+            # simple, left_tailing, right_tailing: ning if the factor starts/returns to 1
             # taling may be the wrong word, as it is not really a tail, but we have the factor at start or end
             # 50% chance for simple, 25% for left_tailing and 25% for right_tailing
             if random.random() < 0.5:
-                self.sub_type = "simple"
+                self.sub_type = "symmetric"
             elif random.random() < 0.5:
                 self.sub_type = "left_tailing"
                 self.align_previous_phase = True
             else:
                 self.sub_type = "right_tailing"
                 self.align_next_phase = True
-
-            self.factor = DataUtilityClass.get_random_float(0.4, 1.6, precision=2, exclude=[0.9,1,1.1])
-        
+                
+        elif selected_function == "only_max":
+            self.function_type = "only_max"
+            self.align_next_phase = True
+            self.align_previous_phase = True
+            self.factor = DataUtilityClass.get_random_float(min = 1.2, max = 2, precision=2)
+        elif selected_function == "only_min":
+            self.function_type = "only_min"
+            self.align_next_phase = True
+            self.align_previous_phase = True
+            self.factor = DataUtilityClass.get_random_float(min = 1.2, max = 2, precision=2)
         else:
             # should never be raised 
-            raise ValueError("Phase Range Changer, set parameters: function type not supported")
+            raise ValueError(f"Phase Range Changer, set parameters: function type {self.function_type} not supported")
 
-
-
-        
 
     def apply_manipulation(self, data : pd.DataFrame, sensor :str, phase_index_list : list) -> pd.DataFrame:
         """
@@ -172,46 +159,69 @@ class PhaseRangeChanger(AbstractManipulator):
                 sensor : str -- the sensor to be changed
                 phase_index_list : list -- the phases to be changed
                 parameters : dict -- should contain factor and function type to increase/decrease the factor
-                    this way we start at 1 and do not change the start and end value
-                    TODO: factor should be >0, inverting doesn't seem reasoable rn :thinking:
         """
         mask = self.data_handler.get_mask_for_phases(data, phase_index_list)
         phase_data = data.loc[mask]
-        phase_data_min = phase_data[sensor].min()
-        phase_data_max = phase_data[sensor].max()
 
-        # center the data, this way we can increase and decrease the peaks and valleys
-        phase_data_median = (phase_data_min + phase_data_max) / 2
+        if self.function_type == "constant" or self.function_type == "gaussian":
+
+            # center the data, this way we can increase and decrease the peaks and valleys
+            if self.centering_technqiue == "mid_range":
+                phase_data_min = phase_data[sensor].min()
+                phase_data_max = phase_data[sensor].max()
+                phase_centering = (phase_data_min + phase_data_max) / 2
+            elif self.centering_technqiue == "median":
+                phase_centering = phase_data[sensor].median()
+            else:
+                raise ValueError(f"Phase Range Changer, apply manipulation: centering technique {self.centering_technqiue} not supported")
+            
+            phase_data_sensor = phase_data[sensor] - phase_centering
+
+            phase_length = len(phase_data_sensor)
+
+            multiplier_list = self._get_multiplier_list(phase_length)
+
+            phase_data_sensor *= multiplier_list
+
+            phase_data_sensor += phase_centering
+        
+        elif self.function_type == "only_max":
+            # only increase the peaks
+            phase_data_min = phase_data[sensor].min()
+            phase_data_max = phase_data[sensor].max()
+
+            phase_data_sensor = phase_data[sensor]
+
+            mean = phase_data_sensor.mean()
+            phase_data_sensor -= mean
+
+            new_max = phase_data_max - mean
+            new_min = phase_data_min - mean
+            new_max*= self.factor
 
 
-        phase_data_sensor = phase_data[sensor] - phase_data_median
+            phase_data_sensor = DataUtilityClass.scale_list_of_values(phase_data_sensor, new_min, new_max)
+            phase_data_sensor += mean
 
-        # check if the range does anything
-        # when using min/max this should never occur
-        # if true, the range change is the same as just multiplying the data without centering it
-        if phase_data_sensor.min() > 0 or phase_data_sensor.max() < 0:
-            logging.debug("PhaseRangeChanger: changing without borders not effective")
+        elif self.function_type == "only_min":
+            # only increase the valleys
+            phase_data_min = phase_data[sensor].min()
+            phase_data_max = phase_data[sensor].max()
 
-        phase_length = len(phase_data_sensor)
+            phase_data_sensor = phase_data[sensor]
 
-        multiplier_list = self._get_multiplier_list(phase_length)
+            mean = phase_data_sensor.mean()
+            phase_data_sensor -= mean
 
-        phase_data_sensor *= multiplier_list
+            new_max = phase_data_max - mean
+            new_min = phase_data_min - mean
+            new_min*= self.factor
 
-        phase_data_sensor += phase_data_median
+            
+            phase_data_sensor = DataUtilityClass.scale_list_of_values(phase_data_sensor, new_min, new_max)
+            phase_data_sensor += mean
+        else:
+            raise ValueError("Phase Range Changer, apply manipulation: function type not supported")
 
         data.loc[mask, sensor] = phase_data_sensor
         return data
-    
-
-    def requires_alignment_of_next_phase(self):
-        """
-            return align_next_phase bool
-        """
-        return self.align_next_phase
-    
-    def requires_alignment_of_previous_phase(self):
-        """
-            returns align_previous_phase bool
-        """
-        return self.align_previous_phase

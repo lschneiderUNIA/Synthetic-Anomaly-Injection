@@ -1,0 +1,5 @@
+before_script:
+  - mkdir -p ~/.ssh
+  - echo "$MIRROR_SSH_KEY" > ~/.ssh/MIRROR_SSH_KEY
+  - chmod 600 ~/.ssh/MIRROR_SSH_KEY
+  - ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts

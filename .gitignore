@@ -7,8 +7,6 @@ venv/
 
 # Data directory
 data/
-# Data options with includes sensor names
-options.py
 
-# data exploration as it includes sensor names
-data_exploration.py
+# generated data directory
+generated datasets/*

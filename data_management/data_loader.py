@@ -1,6 +1,6 @@
 import sys
 sys.path.append('..')
-import options as op
+import options_rational as op
 
 import numpy as np
 import pandas as pd
@@ -22,10 +22,10 @@ class DataLoader():
         self.f1_labels_file = op.F1_LABELS_FILE
 
     def _load_data(self, file_name : str) -> pd.DataFrame:
-        data_set = pd.read_parquet(file_name)
+        dataset = pd.read_parquet(file_name)
         logging.debug(f"Loaded data from {file_name}")
-        logging.debug(f"Data shape: {data_set.shape}")
-        return data_set
+        logging.debug(f"Data shape: {dataset.shape}")
+        return dataset
 
     def load_f1_data(self) -> pd.DataFrame:
         logging.info("Loading F1 data")

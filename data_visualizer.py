@@ -7,6 +7,8 @@ import matplotlib
 import itertools
 import math
 import logging
+from matplotlib.backends.backend_pdf import PdfPages
+import options_rational as op
 
 
 class DataVisualizer():
@@ -28,18 +30,29 @@ class DataVisualizer():
 
         
     """
-    def __init__(self, layout : tuple[int, int]) -> None:
+    def __init__(self, layout : tuple[int, int], save_as_pdf_bool : bool = False, filename : str = "anomaly_plots.pdf") -> None:
         """
-            define format, layout of plots,
+            define format, layout of plots
+            save_as_pdf_bool is a flag to save the plots as pdf or not, not all functions are supported when saving as pdf
+
+            @param
+                layout : tuple[int, int] -- layout of plots
+                save_as_pdf_bool : bool -- save as pdf or not
 
         """
-
-        self.layout = layout
-        try:
-            self.fig, self.axes = plt.subplots(layout[0], layout[1])
-        except:
-            raise ValueError("Layout must be a tuple of two integers")
-        #self.fig.tight_layout()
+        self.save_as_pdf_bool = save_as_pdf_bool
+        if not save_as_pdf_bool:
+            self.layout = layout
+            try:
+                self.fig, self.axes = plt.subplots(layout[0], layout[1])
+            except:
+                raise ValueError("Layout must be a tuple of two integers")
+            #self.fig.tight_layout()
+        else:
+            if filename[-3:] != 'pdf':
+                filename = filename + '.pdf'
+            self._reset_plot_for_pdf()
+            self.pdf = PdfPages(f"{op.GENERATED_DATA_DIRECTORY}/{filename}")
 
         self._limit_min_adjustment = 0.8
         self._limit_max_adjustment = 1.2
@@ -47,11 +60,15 @@ class DataVisualizer():
 
 
 
-    def _get_correct_axes(self, grid_position : tuple[int, int]) -> matplotlib.axes:
+
+
+    def _get_correct_axes(self, grid_position : tuple[int, int]) -> matplotlib.axes.Axes:
         """
             get axes object at grid position
             I always want to access the axes object with a tuple, even if its a 1x1 grid or a list of axes objects
         """
+        if self.save_as_pdf_bool:
+            return self.axes
         #print(grid_position)
         if grid_position[0] >= self.layout[0] or grid_position[1] >= self.layout[1]:
             raise ValueError("Grid position out of bounds")
@@ -63,6 +80,16 @@ class DataVisualizer():
             return self.axes[grid_position[0]]      
         else:
             return self.axes[grid_position[0], grid_position[1]]
+        
+    def plot_vertical_line_at_position(self,
+                                       grid_position : tuple[int, int],
+                                       x_position : int,
+                                       color : str = 'black') -> None:
+        """
+            plot vertical line at grid position
+        """
+        axes = self._get_correct_axes(grid_position)
+        axes.axvline(x = x_position, color=color, linestyle='--')
 
     def plot_at_grid_position_with_distinct_points(self, 
                               grid_position : tuple[int, int], 
@@ -119,7 +146,7 @@ class DataVisualizer():
 
         """
         axes = self._get_correct_axes(grid_position)
-        
+            
         
         x = data[x_column]
         y = data[y_column]
@@ -164,9 +191,9 @@ class DataVisualizer():
     def _handle_limits_at_grid_position(self, 
                                         x, # should be pandas series
                                         y, 
-                                        axes : matplotlib.axes,
-                                        x_limits : tuple,
-                                        y_limits : tuple,) -> None:
+                                        axes : matplotlib.axes.Axes,
+                                        custom_x_limits : tuple,
+                                        custom_y_limits : tuple,) -> None:
         """
             handle limits for axes object
             set new min/max on axes with min and max adjustment to make sure the data is more visible
@@ -181,36 +208,45 @@ class DataVisualizer():
                 y_limits : tuple 
 
         """
-        x_min = self._handle_limit_adjustment(min(x), 'min')
-        x_max = self._handle_limit_adjustment(max(x), 'max')
-        y_min = self._handle_limit_adjustment(min(y), 'min')    
-        y_max = self._handle_limit_adjustment(max(y), 'max')
-
         current_x_limits = axes.get_xlim()
         current_y_limits = axes.get_ylim()
 
-        logging.debug(f"current_x_limits: {current_x_limits}")
-        logging.debug(f"current_y_limits: {current_y_limits}")
+        # filter out nan values
+        x = x.dropna()
+        y = y.dropna()
+        # check if only nan
+        if x.empty or y.empty:
+            return
+        
+        x_min = self._handle_limit_adjustment(min(x), 'min')
+        x_max = self._handle_limit_adjustment(max(x), 'max')
+        y_min = self._handle_limit_adjustment(min(y), 'min')    
+        y_max = self._handle_limit_adjustment(max(y), 'max')    
+
+
+
+        # logging.debug(f"current_x_limits: {current_x_limits}")
+        # logging.debug(f"current_y_limits: {current_y_limits}")
 
         # set new limits based on x and y values
         if x_min < current_x_limits[0]:
-            axes.set_xlim([self._handle_limit_adjustment(x_min, 'min'), axes.get_xlim()[1]])
+            axes.set_xlim([x_min, axes.get_xlim()[1]])
         if x_max > current_x_limits[1]:
-            axes.set_xlim([axes.get_xlim()[0], self._handle_limit_adjustment(x_max, 'max')])
+            axes.set_xlim([axes.get_xlim()[0], x_max])
         if y_min < current_y_limits[0]:
-            axes.set_ylim([self._handle_limit_adjustment(y_min, 'min'), axes.get_ylim()[1]])
+            axes.set_ylim([y_min, axes.get_ylim()[1]])
         if y_max > current_y_limits[1]:
-            axes.set_ylim([axes.get_ylim()[0], self._handle_limit_adjustment(y_max, 'max')])
+            axes.set_ylim([axes.get_ylim()[0], y_max])
         
         # check if manual limits are set, but only set them if they are outside of the current limits
-        if x_limits[0] != None and x_limits[0] < axes.get_xlim()[0]:
-            axes.set_xlim([x_limits[0], axes.get_xlim()[1]])
-        if x_limits[1] != None and x_limits[1] > axes.get_xlim()[1]:
-            axes.set_xlim([axes.get_xlim()[0], x_limits[1]])
-        if y_limits[0] != None and y_limits[0] < axes.get_ylim()[0]:
-            axes.set_ylim([y_limits[0], axes.get_ylim()[1]])
-        if y_limits[1] != None and y_limits[1] > axes.get_ylim()[1]:
-            axes.set_ylim([axes.get_ylim()[0], y_limits[1]])    
+        if custom_x_limits[0] != None and custom_x_limits[0] < axes.get_xlim()[0]:
+            axes.set_xlim([custom_x_limits[0], axes.get_xlim()[1]])
+        if custom_x_limits[1] != None and custom_x_limits[1] > axes.get_xlim()[1]:
+            axes.set_xlim([axes.get_xlim()[0], custom_x_limits[1]])
+        if custom_y_limits[0] != None and custom_y_limits[0] < axes.get_ylim()[0]:
+            axes.set_ylim([custom_y_limits[0], axes.get_ylim()[1]])
+        if custom_y_limits[1] != None and custom_y_limits[1] > axes.get_ylim()[1]:
+            axes.set_ylim([axes.get_ylim()[0], custom_y_limits[1]])    
 
 
     def _handle_limit_adjustment(self,input_limit, min_or_max) -> float:
@@ -230,8 +266,14 @@ class DataVisualizer():
             return input_limit * self._limit_min_adjustment
         if input_limit > 0 and min_or_max == 'min':
             return input_limit * self._limit_min_adjustment
-        else:
+        if input_limit > 0 and min_or_max == 'max':
             return input_limit * self._limit_max_adjustment
+        if input_limit == math.nan or input_limit == None or pd.isnull(input_limit):
+            if min_or_max == 'min':
+                return math.inf
+            if min_or_max == 'max':
+                return -math.inf
+        raise ValueError(f"Handle limit adjustment: no case found: {input_limit}, {min_or_max}")
 
 
 
@@ -257,9 +299,44 @@ class DataVisualizer():
             seconds_index = data['seconds'].iloc[index]
             axes.axvline(x = seconds_index, color=color, linestyle='--')
 
+    def save_as_pdf(self) -> None:
+        """
+            save the figure as pdf
+        """
+        if self.save_as_pdf_bool:
+            self.pdf.savefig(self.fig)
+            plt.close(self.fig)
+            self._reset_plot_for_pdf()
+        else:
+            raise ValueError("save_as_pdf_bool is not set to True")
+    
+    def _reset_plot_for_pdf(self) -> None:
+        """
+            reset the plot for pdf
+        """
+        self.fig, self.axes = plt.subplots(1, 1, figsize=(13,8))
+        
+    def close_pdf(self) -> None:
+        """
+            close the pdf
+        """
+        if self.save_as_pdf_bool:
+            self.pdf.close()
+        else:
+            raise ValueError("save_as_pdf_bool is not set to True")
+
     def show_data(self) -> None:
         """
             show all plots
         """
         self.fig.tight_layout()
         plt.show()
+
+    def finish_data(self) -> None:
+        """
+            finish data visualization
+        """
+        if self.save_as_pdf_bool:
+            self.close_pdf()
+        else:
+            self.show_data()
